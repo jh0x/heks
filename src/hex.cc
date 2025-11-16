@@ -163,7 +163,7 @@ inline static __m256i byte2nib(__m128i val) {
 }
 
 // len is number or dest bytes (i.e. half of src length)
-void decodeHexBMI(uint8_t* __restrict__ dest, const uint8_t* __restrict__ src, size_t len) {
+void decodeHexBMI(uint8_t* FAST_HEX_RESTRICT dest, const uint8_t* FAST_HEX_RESTRICT src, size_t len) {
   for (size_t i = 0; i < len; i++) {
     uint8_t a = *src++;
     uint8_t b = *src++;
@@ -174,7 +174,7 @@ void decodeHexBMI(uint8_t* __restrict__ dest, const uint8_t* __restrict__ src, s
 }
 
 // len is number or dest bytes (i.e. half of src length)
-void decodeHexVec(uint8_t* __restrict__ dest, const uint8_t* __restrict__ src, size_t len) {
+void decodeHexVec(uint8_t* FAST_HEX_RESTRICT dest, const uint8_t* FAST_HEX_RESTRICT src, size_t len) {
   const __m256i A_MASK = _mm256_setr_epi8(
     0, -1, 2, -1, 4, -1, 6, -1, 8, -1, 10, -1, 12, -1, 14, -1,
     0, -1, 2, -1, 4, -1, 6, -1, 8, -1, 10, -1, 12, -1, 14, -1);
@@ -214,7 +214,7 @@ void decodeHexVec(uint8_t* __restrict__ dest, const uint8_t* __restrict__ src, s
 #endif // defined(__AVX2__)
 
 // len is number of dest bytes
-void decodeHexLUT(uint8_t* __restrict__ dest, const uint8_t* __restrict__ src, size_t len) {
+void decodeHexLUT(uint8_t* FAST_HEX_RESTRICT dest, const uint8_t* FAST_HEX_RESTRICT src, size_t len) {
   for (size_t i = 0; i < len; i++) {
     uint8_t a = *src++;
     uint8_t b = *src++;
@@ -225,7 +225,7 @@ void decodeHexLUT(uint8_t* __restrict__ dest, const uint8_t* __restrict__ src, s
 }
 
 // len is number of dest bytes
-void decodeHexLUT4(uint8_t* __restrict__ dest, const uint8_t* __restrict__ src, size_t len) {
+void decodeHexLUT4(uint8_t* FAST_HEX_RESTRICT dest, const uint8_t* FAST_HEX_RESTRICT src, size_t len) {
   for (size_t i = 0; i < len; i++) {
     uint8_t a = *src++;
     uint8_t b = *src++;
@@ -241,7 +241,7 @@ static const char hex_table[16] = {
 inline static char hex(uint8_t value) { return hex_table[value]; }
 
 // len is number of src bytes
-void encodeHex(uint8_t* __restrict__ dest, const uint8_t* __restrict__ src, size_t len) {
+void encodeHex(uint8_t* FAST_HEX_RESTRICT dest, const uint8_t* FAST_HEX_RESTRICT src, size_t len) {
   for (size_t i = 0; i < len; i++) {
     uint8_t a = src[i];
     uint8_t lo = a & 0b1111;
@@ -253,7 +253,7 @@ void encodeHex(uint8_t* __restrict__ dest, const uint8_t* __restrict__ src, size
 
 #if defined(__AVX2__)
 // len is number of src bytes
-void encodeHexVec(uint8_t* __restrict__ dest, const uint8_t* __restrict__ src, size_t len) {
+void encodeHexVec(uint8_t* FAST_HEX_RESTRICT dest, const uint8_t* FAST_HEX_RESTRICT src, size_t len) {
   const __m128i* input128 = reinterpret_cast<const __m128i*>(src);
   __m256i* output256 = reinterpret_cast<__m256i*>(dest);
 
