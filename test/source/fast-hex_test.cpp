@@ -188,7 +188,8 @@ constexpr std::string_view encoded_data[] = {
     "5465737431323334353637383941424344454630"sv,
     "1415161718191a1b1c1d1e1f2021222324252627"sv};
 
-TEST_CASE("encodeHex")
+template <auto EncodingFunc>
+void testHexEncoding()
 {
     for (size_t i = 0; i < sizeof(raw_data) / sizeof(raw_data[0]); ++i)
     {
@@ -198,28 +199,21 @@ TEST_CASE("encodeHex")
         std::string output;
         output.resize(raw_str.size() * 2);
 
-        encodeHex(reinterpret_cast<uint8_t *>(output.data()), reinterpret_cast<const uint8_t *>(raw_str.data()), raw_str.size());
+        EncodingFunc(reinterpret_cast<uint8_t *>(output.data()), reinterpret_cast<const uint8_t *>(raw_str.data()), raw_str.size());
 
         CAPTURE(i);
         REQUIRE(output == expected);
     }
 }
 
+TEST_CASE("encodeHex")
+{
+    testHexEncoding<encodeHex>();
+}
+
 #if defined(__AVX2__)
 TEST_CASE("encodeHexVec")
 {
-    for (size_t i = 0; i < sizeof(raw_data) / sizeof(raw_data[0]); ++i)
-    {
-        const auto & raw_str = raw_data[i];
-        const auto & expected = encoded_data[i];
-
-        std::string output;
-        output.resize(raw_str.size() * 2);
-
-        encodeHexVec(reinterpret_cast<uint8_t *>(output.data()), reinterpret_cast<const uint8_t *>(raw_str.data()), raw_str.size());
-
-        CAPTURE(i);
-        REQUIRE(output == expected);
-    }
+    testHexEncoding<encodeHexVec>();
 }
 #endif
