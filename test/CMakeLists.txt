@@ -20,7 +20,12 @@ target_include_directories(
 )
 # ---- Tests ----
 
-add_executable(fast-hex_test source/main.cpp source/fast-hex_test.cpp)
+add_executable(
+    fast-hex_test
+    source/main.cpp
+    source/test_valid_inputs.cpp
+    source/test_invalid_inputs.cpp
+)
 target_link_libraries(fast-hex_test PRIVATE fast-hex::fast-hex doctest)
 target_compile_features(fast-hex_test PRIVATE cxx_std_17)
 
