@@ -1,4 +1,4 @@
-#include "fast-hex/fast-hex.hpp"
+#include "fast_hex/fast_hex.hpp"
 
 #include <string>
 #include <string_view>

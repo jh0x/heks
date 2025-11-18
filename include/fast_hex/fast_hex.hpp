@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "fast-hex/fast-hex_export.hpp"
+#include "fast_hex/fast_hex_export.hpp"
 
 #if defined(_MSC_VER)
 #    define FAST_HEX_RESTRICT __restrict // The C99 keyword, available as a C++ extension

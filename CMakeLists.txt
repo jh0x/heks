@@ -3,10 +3,10 @@ cmake_minimum_required(VERSION 3.14)
 include(cmake/prelude.cmake)
 
 project(
-    fast-hex
+    fast_hex
     VERSION 0.1.0
     DESCRIPTION "Hex encode/decode"
-    HOMEPAGE_URL "https://github.com/jh0x/fast-hex"
+    HOMEPAGE_URL "https://github.com/jh0x/fast_hex"
     LANGUAGES CXX
 )
 
@@ -15,50 +15,50 @@ include(cmake/variables.cmake)
 
 # ---- Declare library ----
 
-add_library(fast-hex_fast-hex source/fast-hex.cpp)
-add_library(fast-hex::fast-hex ALIAS fast-hex_fast-hex)
+add_library(fast_hex_fast_hex source/fast_hex.cpp)
+add_library(fast_hex::fast_hex ALIAS fast_hex_fast_hex)
 
 include(GenerateExportHeader)
 generate_export_header(
-    fast-hex_fast-hex
-    BASE_NAME fast-hex
-    EXPORT_FILE_NAME export/fast-hex/fast-hex_export.hpp
+    fast_hex_fast_hex
+    BASE_NAME fast_hex
+    EXPORT_FILE_NAME export/fast_hex/fast_hex_export.hpp
     CUSTOM_CONTENT_FROM_VARIABLE pragma_suppress_c4251
 )
 
 if(NOT BUILD_SHARED_LIBS)
-    target_compile_definitions(fast-hex_fast-hex PUBLIC FAST_HEX_STATIC_DEFINE)
+    target_compile_definitions(fast_hex_fast_hex PUBLIC FAST_HEX_STATIC_DEFINE)
 endif()
 
 set_target_properties(
-    fast-hex_fast-hex
+    fast_hex_fast_hex
     PROPERTIES
         CXX_VISIBILITY_PRESET hidden
         VISIBILITY_INLINES_HIDDEN YES
         VERSION "${PROJECT_VERSION}"
         SOVERSION "${PROJECT_VERSION_MAJOR}"
-        EXPORT_NAME fast-hex
-        OUTPUT_NAME fast-hex
+        EXPORT_NAME fast_hex
+        OUTPUT_NAME fast_hex
 )
 
 target_include_directories(
-    fast-hex_fast-hex
+    fast_hex_fast_hex
     ${warning_guard}
     PUBLIC "\$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>"
 )
 
 target_include_directories(
-    fast-hex_fast-hex
+    fast_hex_fast_hex
     SYSTEM
     PUBLIC "\$<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/export>"
 )
 
-target_compile_features(fast-hex_fast-hex PUBLIC cxx_std_17)
+target_compile_features(fast_hex_fast_hex PUBLIC cxx_std_17)
 
 # ---- AVX Support ----
 
 include(cmake/avx_support.cmake)
-fast_hex_target_enable_avx(fast-hex_fast-hex)
+fast_hex_target_enable_avx(fast_hex_fast_hex)
 
 # ---- Install rules ----
 
@@ -68,12 +68,12 @@ endif()
 
 # ---- Developer mode ----
 
-if(NOT fast-hex_DEVELOPER_MODE)
+if(NOT fast_hex_DEVELOPER_MODE)
     return()
 elseif(NOT PROJECT_IS_TOP_LEVEL)
     message(
         AUTHOR_WARNING
-        "Developer mode is intended for developers of fast-hex"
+        "Developer mode is intended for developers of fast_hex"
     )
 endif()
 

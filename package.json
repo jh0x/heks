@@ -1,5 +1,5 @@
 {
-  "name": "fast-hex",
+  "name": "fast_hex",
   "version": "1.0.0",
   "description": "Hardware-accelerated string decoding",
   "main": "./build/Release/strdecode.node",

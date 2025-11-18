@@ -1,1 +1,1 @@
-include("${CMAKE_CURRENT_LIST_DIR}/fast-hexTargets.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/fast_hexTargets.cmake")

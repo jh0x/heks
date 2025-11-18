@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.14)
 
-project(fast-hexTests LANGUAGES CXX)
+project(fast_hexTests LANGUAGES CXX)
 
 include(../../cmake/project-is-top-level.cmake)
 include(../../cmake/folders.cmake)
@@ -8,7 +8,7 @@ include(../../cmake/folders.cmake)
 # ---- Dependencies ----
 
 if(PROJECT_IS_TOP_LEVEL)
-    find_package(fast-hex REQUIRED)
+    find_package(fast_hex REQUIRED)
     enable_testing()
 endif()
 
@@ -21,19 +21,19 @@ target_include_directories(
 # ---- Tests ----
 
 add_executable(
-    fast-hex_test
+    fast_hex_test
     main.cpp
     test_valid_inputs.cpp
     test_invalid_inputs.cpp
 )
-target_link_libraries(fast-hex_test PRIVATE fast-hex::fast-hex doctest)
-target_compile_features(fast-hex_test PRIVATE cxx_std_17)
+target_link_libraries(fast_hex_test PRIVATE fast_hex::fast_hex doctest)
+target_compile_features(fast_hex_test PRIVATE cxx_std_17)
 
 # ---- AVX Support ----
 include(../../cmake/avx_support.cmake)
-fast_hex_target_enable_avx(fast-hex_test)
+fast_hex_target_enable_avx(fast_hex_test)
 
-add_test(NAME fast-hex_test COMMAND fast-hex_test)
+add_test(NAME fast_hex_test COMMAND fast_hex_test)
 
 # ---- End-of-file commands ----
 

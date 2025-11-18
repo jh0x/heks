@@ -1,17 +1,17 @@
 # ---- Developer mode ----
 
 # Developer mode enables targets and code paths in the CMake scripts that are
-# only relevant for the developer(s) of fast-hex
+# only relevant for the developer(s) of fast_hex
 # Targets necessary to build the project must be provided unconditionally, so
 # consumers can trivially build and package the project
 if(PROJECT_IS_TOP_LEVEL)
-    option(fast-hex_DEVELOPER_MODE "Enable developer mode" OFF)
+    option(fast_hex_DEVELOPER_MODE "Enable developer mode" OFF)
     option(BUILD_SHARED_LIBS "Build shared libs." OFF)
 endif()
 
 # ---- Suppress C4251 on Windows ----
 
-# Please see include/fast-hex/fast-hex.hpp for more details
+# Please see include/fast_hex/fast_hex.hpp for more details
 set(pragma_suppress_c4251
     "
 /* This needs to suppress only for MSVC */
@@ -32,12 +32,12 @@ set(pragma_suppress_c4251
 set(warning_guard "")
 if(NOT PROJECT_IS_TOP_LEVEL)
     option(
-        fast-hex_INCLUDES_WITH_SYSTEM
-        "Use SYSTEM modifier for fast-hex's includes, disabling warnings"
+        fast_hex_INCLUDES_WITH_SYSTEM
+        "Use SYSTEM modifier for fast_hex's includes, disabling warnings"
         ON
     )
-    mark_as_advanced(fast-hex_INCLUDES_WITH_SYSTEM)
-    if(fast-hex_INCLUDES_WITH_SYSTEM)
+    mark_as_advanced(fast_hex_INCLUDES_WITH_SYSTEM)
+    if(fast_hex_INCLUDES_WITH_SYSTEM)
         set(warning_guard SYSTEM)
     endif()
 endif()
