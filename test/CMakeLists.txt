@@ -1,3 +1,7 @@
 add_subdirectory(source)
 
-add_subdirectory(fuzz)
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    add_subdirectory(fuzz)
+else()
+    message(STATUS "Fuzz subdirectory not included (requires Clang compiler)")
+endif()
