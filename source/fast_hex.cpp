@@ -223,8 +223,8 @@ void decodeHexVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RES
 
     while (len >= 32)
     {
-        __m256i av1 = _mm256_lddqu_si256(val3++); // 32 nibbles, 16 bytes
-        __m256i av2 = _mm256_lddqu_si256(val3++);
+        __m256i av1 = _mm256_loadu_si256(val3++); // 32 nibbles, 16 bytes
+        __m256i av2 = _mm256_loadu_si256(val3++);
         // Separate high and low nibbles and extend into 16-bit elements
         __m256i a1 = _mm256_shuffle_epi8(av1, A_MASK);
         __m256i b1 = _mm256_shuffle_epi8(av1, B_MASK);
