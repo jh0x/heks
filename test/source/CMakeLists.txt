@@ -23,6 +23,7 @@ target_include_directories(
 add_executable(
     fast_hex_test
     main.cpp
+    test_encode_fast.cpp
     test_valid_inputs.cpp
     test_invalid_inputs.cpp
 )

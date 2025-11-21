@@ -37,6 +37,20 @@ std::vector<uint8_t> createHexData(size_t binarySize)
     } \
     BENCHMARK(BM_##func_name##_##size_name);
 
+#define DEFINE_ENCODE_BENCHMARK_FAST(func_name, size_val, size_name) \
+    static void BM_##func_name##_##size_name(benchmark::State & state) \
+    { \
+        auto data = createBinaryData(size_val); \
+        std::vector<uint8_t> hex(size_val * 2); \
+\
+        for (auto _ : state) \
+        { \
+            func_name(hex.data(), data.data()); \
+            benchmark::DoNotOptimize(hex); \
+        } \
+    } \
+    BENCHMARK(BM_##func_name##_##size_name);
+
 #define DEFINE_DECODE_BENCHMARK(func_name, size_val, size_name) \
     static void BM_##func_name##_##size_name(benchmark::State & state) \
     { \
@@ -62,7 +76,9 @@ DEFINE_ENCODE_BENCHMARK(encodeHexLower, 1024 * 1024, 1MB)
 
 #if defined(__AVX2__)
 DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec, 8, 8B)
+DEFINE_ENCODE_BENCHMARK_FAST(encodeHex8LowerFast, 8, 8B)
 DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec, 16, 16B)
+DEFINE_ENCODE_BENCHMARK_FAST(encodeHex16LowerFast, 16, 16B)
 DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec, 32, 32B)
 DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec, 64, 64B)
 DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec, 1024, 1KB)
