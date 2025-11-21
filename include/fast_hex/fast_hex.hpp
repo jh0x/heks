@@ -11,6 +11,9 @@
 #    define FAST_HEX_RESTRICT __restrict__
 #endif
 
+namespace heks
+{
+
 // Decoders
 // Decode src hex string into dest bytes
 
@@ -46,3 +49,5 @@ FAST_HEX_EXPORT void encodeHex8UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const
 FAST_HEX_EXPORT void encodeHex16LowerFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
 FAST_HEX_EXPORT void encodeHex16UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
 #endif // defined(__AVX2__)
+
+}

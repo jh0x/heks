@@ -7,6 +7,7 @@
 #include <doctest/doctest.h>
 
 using namespace std::literals::string_view_literals;
+using namespace heks;
 
 TEST_SUITE("encodeHexFast")
 {

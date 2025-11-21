@@ -5,6 +5,8 @@
 #include <cstring>
 #include <vector>
 
+using namespace heks;
+
 std::vector<uint8_t> createBinaryData(size_t size)
 {
     std::vector<uint8_t> data(size);

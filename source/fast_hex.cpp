@@ -18,8 +18,17 @@
 #    include <intrin.h>
 #endif
 
+namespace heks
+{
+
 // This implementation is by https://github.com/zbjornson/fast-hex
-// Only introduced some minor modernisations and style changes.
+// Only introduced some minor modernisations and style changes to those functions
+// decodeHexLUT
+// decodeHexLUT4
+// decodeHexVec
+// encodeHexImpl
+// encodeHexVecImpl
+
 
 using namespace std::literals::string_view_literals;
 
@@ -453,3 +462,5 @@ void encodeHex16UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST
 }
 
 #endif // defined(__AVX2__)
+
+}

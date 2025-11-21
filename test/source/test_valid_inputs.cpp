@@ -5,6 +5,8 @@
 
 #include <doctest/doctest.h>
 
+using namespace heks;
+
 // Test data for encodeHex tests
 constexpr std::string_view raw_data[] = {
     // Empty string

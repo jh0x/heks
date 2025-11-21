@@ -5,6 +5,8 @@
 
 #include <doctest/doctest.h>
 
+using namespace heks;
+
 // clang-format off
 constexpr std::string_view invalid_hex_data[] = {
     "GG",           // Both invalid
