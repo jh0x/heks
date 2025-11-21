@@ -15,6 +15,8 @@ if(ENABLE_COVERAGE)
     include(cmake/coverage.cmake)
 endif()
 
+option(ENABLE_FUZZ "Enable fuzz support" OFF)
+
 option(ENABLE_BENCHMARK "Enable benchmark support" OFF)
 if(ENABLE_BENCHMARK)
     include(ExternalProject)

@@ -184,9 +184,38 @@ jobs:
       working-directory: build
       run: ctest --output-on-failure --no-tests=error -C ${{ matrix.build_type }} -j 2
 
+  fuzz:
+    needs: [lint]
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install dependencies
+      run: >-
+        sudo apt-get install build-essential cmake git clang-18 cppcheck -y -q
+
+    - name: Configure
+      shell: pwsh
+      run: cmake --preset=ci-ubuntu
+        -D CMAKE_C_COMPILER=clang-18
+        -D CMAKE_CXX_COMPILER=clang++-18
+        -D CMAKE_BUILD_TYPE=Release
+        -D ENABLE_FUZZ=ON
+
+    - name: Build
+      run: cmake --build build -j 2
+
+    - name: Fuzz
+      working-directory: build
+      run: ctest --output-on-failure -R fuzz -j 1
+
   docs:
     # Deploy docs only when builds succeed
-    needs: [sanitize, test]
+    needs: [sanitize, test, fuzz]
 
     runs-on: ubuntu-latest
 
