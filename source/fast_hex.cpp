@@ -12,10 +12,13 @@
 #            error("Requires GCC >= 4.8")
 #        endif // gcc >=4.8
 #    endif // __clang__
-
-#    include <immintrin.h>
+#    if defined(__AVX2__)
+#        include <immintrin.h>
+#    endif
 #elif defined(_MSC_VER)
-#    include <intrin.h>
+#    if defined(__AVX2__)
+#        include <intrin.h>
+#    endif
 #endif
 
 namespace heks
