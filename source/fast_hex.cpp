@@ -10,8 +10,7 @@
 #    endif
 #endif
 
-namespace heks
-{
+FAST_HEX_NAMESPACE_OPEN
 
 // This implementation is by https://github.com/zbjornson/fast-hex
 // Only introduced some minor modernisations and style changes to those functions
@@ -455,4 +454,4 @@ void encodeHex16UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST
 
 #endif // defined(__AVX2__)
 
-}
+FAST_HEX_NAMESPACE_CLOSE

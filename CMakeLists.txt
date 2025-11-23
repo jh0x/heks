@@ -41,6 +41,19 @@ set_target_properties(
         OUTPUT_NAME fast_hex
 )
 
+# Set compile definitions based on options
+if(fast_hex_USE_NAMESPACE)
+    target_compile_definitions(
+        fast_hex_fast_hex
+        PUBLIC FAST_HEX_USE_NAMESPACE=1
+    )
+else()
+    target_compile_definitions(
+        fast_hex_fast_hex
+        PUBLIC FAST_HEX_USE_NAMESPACE=0
+    )
+endif()
+
 target_include_directories(
     fast_hex_fast_hex
     ${warning_guard}

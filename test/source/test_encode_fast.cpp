@@ -7,7 +7,9 @@
 #include <doctest/doctest.h>
 
 using namespace std::literals::string_view_literals;
+#if FAST_HEX_USE_NAMESPACE
 using namespace heks;
+#endif
 
 struct TestCase8
 {

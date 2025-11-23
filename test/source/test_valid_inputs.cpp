@@ -5,7 +5,9 @@
 
 #include <doctest/doctest.h>
 
+#if FAST_HEX_USE_NAMESPACE
 using namespace heks;
+#endif
 
 using namespace std::string_view_literals;
 

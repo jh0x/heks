@@ -5,7 +5,10 @@
 #include <cstring>
 #include <vector>
 
+#if FAST_HEX_USE_NAMESPACE
 using namespace heks;
+#endif
+
 
 std::vector<uint8_t> createBinaryData(size_t size)
 {

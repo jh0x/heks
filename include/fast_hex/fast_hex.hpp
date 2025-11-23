@@ -11,8 +11,17 @@
 #    define FAST_HEX_RESTRICT __restrict__
 #endif
 
-namespace heks
-{
+#if FAST_HEX_USE_NAMESPACE
+#    define FAST_HEX_NAMESPACE_OPEN \
+        namespace heks \
+        {
+#    define FAST_HEX_NAMESPACE_CLOSE }
+#else
+#    define FAST_HEX_NAMESPACE_OPEN
+#    define FAST_HEX_NAMESPACE_CLOSE
+#endif
+
+FAST_HEX_NAMESPACE_OPEN
 
 // Decoders
 // Decode src hex string into dest bytes
@@ -50,4 +59,4 @@ FAST_HEX_EXPORT void encodeHex16LowerFast(uint8_t * FAST_HEX_RESTRICT dest, cons
 FAST_HEX_EXPORT void encodeHex16UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
 #endif // defined(__AVX2__)
 
-}
+FAST_HEX_NAMESPACE_CLOSE

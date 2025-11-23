@@ -7,6 +7,7 @@
 if(PROJECT_IS_TOP_LEVEL)
     option(fast_hex_DEVELOPER_MODE "Enable developer mode" OFF)
     option(BUILD_SHARED_LIBS "Build shared libs." OFF)
+    option(fast_hex_USE_NAMESPACE "Use heks namespace for fast_hex library" ON)
 endif()
 
 # ---- Suppress C4251 on Windows ----

@@ -6,7 +6,9 @@
 #include <cstring>
 #include <vector>
 
+#if FAST_HEX_USE_NAMESPACE
 using namespace heks;
+#endif
 
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t * Data, size_t Size)

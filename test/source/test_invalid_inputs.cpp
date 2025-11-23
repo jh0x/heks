@@ -5,7 +5,9 @@
 
 #include <doctest/doctest.h>
 
+#if FAST_HEX_USE_NAMESPACE
 using namespace heks;
+#endif
 
 // clang-format off
 constexpr std::string_view invalid_hex_data[] = {
