@@ -24,7 +24,7 @@ std::vector<uint8_t> createHexData(size_t binarySize)
 {
     auto binary = createBinaryData(binarySize);
     std::vector<uint8_t> hex(binarySize * 2);
-    encodeHexLower(hex.data(), binary.data(), binarySize);
+    encodeHexLower(hex.data(), binary.data(), RawLength{binarySize});
     return hex;
 }
 
@@ -36,7 +36,7 @@ std::vector<uint8_t> createHexData(size_t binarySize)
 \
         for (auto _ : state) \
         { \
-            func_name(hex.data(), data.data(), size_val); \
+            func_name(hex.data(), data.data(), RawLength{size_val}); \
             benchmark::DoNotOptimize(hex); \
         } \
     } \
@@ -64,7 +64,7 @@ std::vector<uint8_t> createHexData(size_t binarySize)
 \
         for (auto _ : state) \
         { \
-            func_name(binary.data(), hex.data(), size_val); \
+            func_name(binary.data(), hex.data(), RawLength{size_val}); \
             benchmark::DoNotOptimize(binary); \
         } \
     } \

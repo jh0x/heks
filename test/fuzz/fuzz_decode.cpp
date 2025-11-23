@@ -17,7 +17,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * Data, size_t Size)
     auto decode = [&](auto decode_func)
     {
         std::vector<uint8_t> decoded(decoded_size);
-        decode_func(decoded.data(), Data, decoded_size);
+        decode_func(decoded.data(), Data, RawLength{decoded_size});
     };
 
     decode(decodeHexLUT);

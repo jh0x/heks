@@ -198,9 +198,10 @@ inline static __m256i byte2nib(__m128i val)
 }
 
 // len is number or dest bytes (i.e. half of src length)
-void decodeHexBMI(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, size_t len)
+void decodeHexBMI(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
-    for (size_t i = 0; i < len; i++)
+    const auto raw_length = static_cast<size_t>(len);
+    for (size_t i = 0; i < raw_length; i++)
     {
         uint8_t a = *src++;
         uint8_t b = *src++;
@@ -211,8 +212,9 @@ void decodeHexBMI(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RES
 }
 
 // len is number or dest bytes (i.e. half of src length)
-void decodeHexVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, size_t len)
+void decodeHexVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
+    auto raw_length = static_cast<size_t>(len);
     const __m256i A_MASK = _mm256_setr_epi8(
         0, -1, 2, -1, 4, -1, 6, -1, 8, -1, 10, -1, 12, -1, 14, -1, 0, -1, 2, -1, 4, -1, 6, -1, 8, -1, 10, -1, 12, -1, 14, -1);
     const __m256i B_MASK = _mm256_setr_epi8(
@@ -221,8 +223,7 @@ void decodeHexVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RES
     const __m256i * val3 = reinterpret_cast<const __m256i *>(src);
     __m256i * dec256 = reinterpret_cast<__m256i *>(dest);
 
-    // Process 4 x 32-byte chunks
-    while (len >= 128)
+    while (raw_length >= 128)
     {
         // Load 4 pairs of 32-byte chunks
         __m256i av1 = _mm256_loadu_si256(val3++);
@@ -283,11 +284,11 @@ void decodeHexVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RES
         _mm256_storeu_si256(dec256++, bytes2);
         _mm256_storeu_si256(dec256++, bytes3);
         _mm256_storeu_si256(dec256++, bytes4);
-        len -= 128;
+        raw_length -= 128;
     }
 
     // Handle remaining 32-byte chunks with original approach
-    while (len >= 32)
+    while (raw_length >= 32)
     {
         __m256i av1 = _mm256_loadu_si256(val3++);
         __m256i av2 = _mm256_loadu_si256(val3++);
@@ -303,19 +304,20 @@ void decodeHexVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RES
 
         __m256i bytes = nib2byte(a1, b1, a2, b2);
         _mm256_storeu_si256(dec256++, bytes);
-        len -= 32;
+        raw_length -= 32;
     }
 
     src = reinterpret_cast<const uint8_t *>(val3);
     dest = reinterpret_cast<uint8_t *>(dec256);
-    decodeHexBMI(dest, src, len);
+    decodeHexBMI(dest, src, RawLength{raw_length});
 }
 #endif // defined(__AVX2__)
 
 // len is number of dest bytes
-void decodeHexLUT(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, size_t len)
+void decodeHexLUT(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
-    for (size_t i = 0; i < len; i++)
+    const auto raw_length = static_cast<size_t>(len);
+    for (size_t i = 0; i < raw_length; i++)
     {
         uint8_t a = *src++;
         uint8_t b = *src++;
@@ -326,9 +328,10 @@ void decodeHexLUT(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RES
 }
 
 // len is number of dest bytes
-void decodeHexLUT4(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, size_t len)
+void decodeHexLUT4(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
-    for (size_t i = 0; i < len; i++)
+    const auto raw_length = static_cast<size_t>(len);
+    for (size_t i = 0; i < raw_length; i++)
     {
         uint8_t a = *src++;
         uint8_t b = *src++;
@@ -360,9 +363,10 @@ inline static constexpr char hex(uint8_t value)
 
 // len is number of src bytes
 template <HexCase H>
-void encodeHexImpl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, size_t len)
+void encodeHexImpl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
-    for (size_t i = 0; i < len; i++)
+    const auto raw_length = static_cast<size_t>(len);
+    for (size_t i = 0; i < raw_length; i++)
     {
         uint8_t a = src[i];
         uint8_t lo = a & 0b1111;
@@ -372,11 +376,11 @@ void encodeHexImpl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RE
     }
 }
 
-void encodeHexLower(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, size_t len)
+void encodeHexLower(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
     encodeHexImpl<HexCase::Lower>(dest, src, len);
 }
-void encodeHexUpper(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, size_t len)
+void encodeHexUpper(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
     encodeHexImpl<HexCase::Upper>(dest, src, len);
 }
@@ -384,13 +388,14 @@ void encodeHexUpper(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_R
 #if defined(__AVX2__)
 // len is number of src bytes
 template <HexCase H>
-void encodeHexVecImpl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, size_t len)
+void encodeHexVecImpl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
+    const auto raw_length = static_cast<size_t>(len);
     const __m128i * input128 = reinterpret_cast<const __m128i *>(src);
     __m256i * output256 = reinterpret_cast<__m256i *>(dest);
 
-    size_t tailLen = len % 16;
-    size_t vectLen = (len - tailLen) >> 4;
+    size_t tailLen = raw_length % 16;
+    size_t vectLen = (raw_length - tailLen) >> 4;
     for (size_t i = 0; i < vectLen; i++)
     {
         __m128i av = _mm_lddqu_si128(&input128[i]);
@@ -399,14 +404,14 @@ void encodeHexVecImpl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX
         _mm256_storeu_si256(&output256[i], hexed);
     }
 
-    encodeHexImpl<H>(dest + (vectLen << 5), src + (vectLen << 4), tailLen);
+    encodeHexImpl<H>(dest + (vectLen << 5), src + (vectLen << 4), RawLength{tailLen});
 }
 
-void encodeHexLowerVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, size_t len)
+void encodeHexLowerVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
     encodeHexVecImpl<HexCase::Lower>(dest, src, len);
 }
-void encodeHexUpperVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, size_t len)
+void encodeHexUpperVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
     encodeHexVecImpl<HexCase::Upper>(dest, src, len);
 }

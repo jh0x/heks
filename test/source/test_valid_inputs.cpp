@@ -252,9 +252,9 @@ void testHexEncoding()
         output_upper.resize(raw_str.size() * 2);
 
         EncodingFuncLower(
-            reinterpret_cast<uint8_t *>(output_lower.data()), reinterpret_cast<const uint8_t *>(raw_str.data()), raw_str.size());
+            reinterpret_cast<uint8_t *>(output_lower.data()), reinterpret_cast<const uint8_t *>(raw_str.data()), RawLength{raw_str.size()});
         EncodingFuncUpper(
-            reinterpret_cast<uint8_t *>(output_upper.data()), reinterpret_cast<const uint8_t *>(raw_str.data()), raw_str.size());
+            reinterpret_cast<uint8_t *>(output_upper.data()), reinterpret_cast<const uint8_t *>(raw_str.data()), RawLength{raw_str.size()});
 
         CAPTURE(i);
         REQUIRE(output_lower == expected_lower);
@@ -287,11 +287,11 @@ void testHexDecoding()
         DecodingFunc(
             reinterpret_cast<uint8_t *>(output_from_lower.data()),
             reinterpret_cast<const uint8_t *>(hex_str_lower.data()),
-            output_from_lower.size());
+            RawLength{output_from_lower.size()});
         DecodingFunc(
             reinterpret_cast<uint8_t *>(output_from_upper.data()),
             reinterpret_cast<const uint8_t *>(hex_str_upper.data()),
-            output_from_upper.size());
+            RawLength{output_from_upper.size()});
 
         CAPTURE(i);
         CAPTURE(hex_str_lower);

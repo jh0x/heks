@@ -62,7 +62,7 @@ void testInvalidHexDecoding()
 
         // The key test: just calling the function without sanitizer/crash/etc
         // For more - should do fuzzing
-        DecodingFunc(reinterpret_cast<uint8_t *>(output.data()), reinterpret_cast<const uint8_t *>(bad_hex_str.data()), output.size());
+        DecodingFunc(reinterpret_cast<uint8_t *>(output.data()), reinterpret_cast<const uint8_t *>(bad_hex_str.data()), RawLength{output.size()});
 
         CAPTURE(i);
         CAPTURE(bad_hex_str);
