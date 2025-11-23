@@ -5,6 +5,12 @@ project(fast_hexTests LANGUAGES CXX)
 include(../../cmake/project-is-top-level.cmake)
 include(../../cmake/folders.cmake)
 
+set(FUZZ_RUNTIME
+    10
+    CACHE STRING
+    "Number of seconds to run fuzz tests during ctest run"
+)
+
 # Include the fuzz target function
 include(../../cmake/fuzz-targets.cmake)
 
@@ -22,12 +28,6 @@ add_fuzz_target(fast_hex_fuzz_roundtrip fuzz_roundtrip.cpp)
 
 # Fast hex decode fuzz target
 add_fuzz_target(fast_hex_fuzz_decode fuzz_decode.cpp)
-
-set(FUZZ_RUNTIME
-    10
-    CACHE STRING
-    "Number of seconds to run fuzz tests during ctest run"
-)
 
 # ---- End-of-file commands ----
 

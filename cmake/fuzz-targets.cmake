@@ -16,5 +16,8 @@ function(add_fuzz_target TARGET_NAME FUZZ_SOURCE_FILE)
     include(${CMAKE_CURRENT_LIST_DIR}/../../cmake/avx_support.cmake)
     fast_hex_target_enable_avx(${TARGET_NAME})
 
-    add_test(NAME ${TARGET_NAME} COMMAND ${TARGET_NAME} -max_total_time=10)
+    add_test(
+        NAME ${TARGET_NAME}
+        COMMAND ${TARGET_NAME} -max_total_time=${FUZZ_RUNTIME}
+    )
 endfunction()
