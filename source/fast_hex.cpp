@@ -2,21 +2,10 @@
 
 #include <string_view>
 
-#if defined(__GNUC__) // GCC, clang
-#    ifdef __clang__
-#        if __clang_major__ < 3 || (__clang_major__ == 3 && __clang_minor__ < 4)
-#            error("Requires clang >= 3.4")
-#        endif // clang >=3.4
-#    else
-#        if __GNUC__ < 4 || (__GNUC__ == 4 && __GNUC_MINOR__ < 8)
-#            error("Requires GCC >= 4.8")
-#        endif // gcc >=4.8
-#    endif // __clang__
-#    if defined(__AVX2__)
+#if defined(__AVX2__)
+#    if defined(__GNUC__)
 #        include <immintrin.h>
-#    endif
-#elif defined(_MSC_VER)
-#    if defined(__AVX2__)
+#    elif defined(_MSC_VER)
 #        include <intrin.h>
 #    endif
 #endif
@@ -107,7 +96,7 @@ static constexpr std::string_view unhex_table4_sv =
     "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF" // 0xC0-0xC7
     "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF" // 0xC8-0xCF
     "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF" // 0xD0-0xD7
-    "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF" // 0xD8-0xEF
+    "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF" // 0xD8-0xDF
     "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF" // 0xE0-0xE7
     "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF" // 0xE8-0xEF
     "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF" // 0xF0-0xF8
