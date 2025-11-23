@@ -69,9 +69,13 @@ target_include_directories(
 target_compile_features(fast_hex_fast_hex PUBLIC cxx_std_17)
 
 # ---- AVX Support ----
-
 include(cmake/avx_support.cmake)
 fast_hex_target_enable_avx(fast_hex_fast_hex)
+
+if(fast_hex_ENABLE_MARCH_NATIVE)
+    message(STATUS "Enabling -march=native for fast_hex library")
+    target_compile_options(fast_hex_fast_hex PRIVATE -march=native)
+endif()
 
 # ---- Install rules ----
 

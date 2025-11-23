@@ -26,4 +26,9 @@ target_compile_features(fast_hex_bench PRIVATE cxx_std_17)
 include(../../cmake/avx_support.cmake)
 fast_hex_target_enable_avx(fast_hex_bench)
 
+if(fast_hex_ENABLE_MARCH_NATIVE)
+    message(STATUS "Enabling -march=native for fast_hex_bench")
+    target_compile_options(fast_hex_bench PRIVATE -march=native)
+endif()
+
 add_folders(Bench)
