@@ -47,15 +47,18 @@ FAST_HEX_EXPORT void decodeHexVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_
 FAST_HEX_EXPORT void encodeHexLower(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
 FAST_HEX_EXPORT void encodeHexUpper(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
 
-#if defined(__AVX2__)
-// AVX2 vectorized version. len is number of src bytes. dest must be twice the size of src.
-FAST_HEX_EXPORT void encodeHexLowerVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
-FAST_HEX_EXPORT void encodeHexUpperVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
 
+#if defined(__AVX__)
 // Fast specialized paths for fixed-size encoding
 // Encode exactly 8 bytes (source) into 16 hex characters (dest)
 FAST_HEX_EXPORT void encodeHex8LowerFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
 FAST_HEX_EXPORT void encodeHex8UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
+#endif
+
+#if defined(__AVX2__)
+// AVX2 vectorized version. len is number of src bytes. dest must be twice the size of src.
+FAST_HEX_EXPORT void encodeHexLowerVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
+FAST_HEX_EXPORT void encodeHexUpperVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
 
 // Encode exactly 16 bytes (source) into 32 hex characters (dest)
 FAST_HEX_EXPORT void encodeHex16LowerFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);

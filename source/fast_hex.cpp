@@ -385,6 +385,26 @@ void encodeHexUpper(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_R
     encodeHexImpl<HexCase::Upper>(dest, src, len);
 }
 
+#if defined(__AVX__)
+static const __m128i HEX_LUT_LOWER = _mm_setr_epi8('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f');
+static const __m128i HEX_LUT_UPPER = _mm_setr_epi8('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F');
+
+template <HexCase H>
+void encodeHex8Fast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
+{
+    __m128i v8 = _mm_loadl_epi64(reinterpret_cast<const __m128i *>(src));
+
+    __m128i hi = _mm_and_si128(_mm_srli_epi16(v8, 4), _mm_set1_epi8(0x0F));
+    __m128i lo = _mm_and_si128(v8, _mm_set1_epi8(0x0F));
+
+    // Interleave: hi[0], lo[0], hi[1], lo[1], ...
+    __m128i nibs = _mm_unpacklo_epi8(hi, lo);
+
+    __m128i result = _mm_shuffle_epi8(H == HexCase::Lower ? HEX_LUT_LOWER : HEX_LUT_UPPER, nibs);
+    _mm_storeu_si128(reinterpret_cast<__m128i *>(dest), result);
+}
+#endif
+
 #if defined(__AVX2__)
 // len is number of src bytes
 template <HexCase H>
@@ -414,17 +434,6 @@ void encodeHexLowerVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HE
 void encodeHexUpperVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
     encodeHexVecImpl<HexCase::Upper>(dest, src, len);
-}
-
-template <HexCase H>
-inline void encodeHex8Fast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
-{
-    // Just 8 bytes
-    __m128i v8 = _mm_loadl_epi64(reinterpret_cast<const __m128i *>(src));
-    __m256i nibs = byte2nib(v8);
-    __m256i hexed = hex<H>(nibs);
-    // Only store first 16 bytes
-    _mm_storeu_si128(reinterpret_cast<__m128i *>(dest), _mm256_castsi256_si128(hexed));
 }
 
 template <HexCase H>
