@@ -223,71 +223,6 @@ void decodeHexVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RES
     const __m256i * val3 = reinterpret_cast<const __m256i *>(src);
     __m256i * dec256 = reinterpret_cast<__m256i *>(dest);
 
-    while (raw_length >= 128)
-    {
-        // Load 4 pairs of 32-byte chunks
-        __m256i av1 = _mm256_loadu_si256(val3++);
-        __m256i av2 = _mm256_loadu_si256(val3++);
-        __m256i av3 = _mm256_loadu_si256(val3++);
-        __m256i av4 = _mm256_loadu_si256(val3++);
-        __m256i av5 = _mm256_loadu_si256(val3++);
-        __m256i av6 = _mm256_loadu_si256(val3++);
-        __m256i av7 = _mm256_loadu_si256(val3++);
-        __m256i av8 = _mm256_loadu_si256(val3++);
-
-        // Separate high and low nibbles for all chunks
-        __m256i a1 = _mm256_shuffle_epi8(av1, A_MASK);
-        __m256i b1 = _mm256_shuffle_epi8(av1, B_MASK);
-        __m256i a2 = _mm256_shuffle_epi8(av2, A_MASK);
-        __m256i b2 = _mm256_shuffle_epi8(av2, B_MASK);
-        __m256i a3 = _mm256_shuffle_epi8(av3, A_MASK);
-        __m256i b3 = _mm256_shuffle_epi8(av3, B_MASK);
-        __m256i a4 = _mm256_shuffle_epi8(av4, A_MASK);
-        __m256i b4 = _mm256_shuffle_epi8(av4, B_MASK);
-        __m256i a5 = _mm256_shuffle_epi8(av5, A_MASK);
-        __m256i b5 = _mm256_shuffle_epi8(av5, B_MASK);
-        __m256i a6 = _mm256_shuffle_epi8(av6, A_MASK);
-        __m256i b6 = _mm256_shuffle_epi8(av6, B_MASK);
-        __m256i a7 = _mm256_shuffle_epi8(av7, A_MASK);
-        __m256i b7 = _mm256_shuffle_epi8(av7, B_MASK);
-        __m256i a8 = _mm256_shuffle_epi8(av8, A_MASK);
-        __m256i b8 = _mm256_shuffle_epi8(av8, B_MASK);
-
-        // Convert ASCII values to nibbles
-        a1 = unhexBitManip(a1);
-        a3 = unhexBitManip(a3);
-        a5 = unhexBitManip(a5);
-        a7 = unhexBitManip(a7);
-
-        a2 = unhexBitManip(a2);
-        a4 = unhexBitManip(a4);
-        a6 = unhexBitManip(a6);
-        a8 = unhexBitManip(a8);
-
-        b1 = unhexBitManip(b1);
-        b3 = unhexBitManip(b3);
-        b5 = unhexBitManip(b5);
-        b7 = unhexBitManip(b7);
-
-        b2 = unhexBitManip(b2);
-        b4 = unhexBitManip(b4);
-        b6 = unhexBitManip(b6);
-        b8 = unhexBitManip(b8);
-
-        // Nibbles to bytes and store
-        __m256i bytes1 = nib2byte(a1, b1, a2, b2);
-        __m256i bytes2 = nib2byte(a3, b3, a4, b4);
-        __m256i bytes3 = nib2byte(a5, b5, a6, b6);
-        __m256i bytes4 = nib2byte(a7, b7, a8, b8);
-
-        _mm256_storeu_si256(dec256++, bytes1);
-        _mm256_storeu_si256(dec256++, bytes2);
-        _mm256_storeu_si256(dec256++, bytes3);
-        _mm256_storeu_si256(dec256++, bytes4);
-        raw_length -= 128;
-    }
-
-    // Handle remaining 32-byte chunks with original approach
     while (raw_length >= 32)
     {
         __m256i av1 = _mm256_loadu_si256(val3++);
@@ -311,6 +246,7 @@ void decodeHexVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RES
     dest = reinterpret_cast<uint8_t *>(dec256);
     decodeHexBMI(dest, src, RawLength{raw_length});
 }
+
 #endif // defined(__AVX2__)
 
 // len is number of dest bytes
