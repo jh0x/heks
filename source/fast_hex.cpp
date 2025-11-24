@@ -439,7 +439,7 @@ void encodeHexUpperVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HE
 template <HexCase H>
 inline void encodeHex16Fast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
 {
-    __m128i v16 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src));
+    __m128i v16 = _mm_lddqu_si128(reinterpret_cast<const __m128i *>(src));
     __m256i nibs = byte2nib(v16);
     __m256i hexed = hex<H>(nibs);
     // Store all 32 bytes (16 input → 32 hex chars)
