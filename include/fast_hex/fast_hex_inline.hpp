@@ -44,18 +44,41 @@
 
 FAST_HEX_NAMESPACE_OPEN
 
+// Length of raw data in bytes (e.g "Test123" is 7 bytes)
+enum class RawLength : size_t;
+
+void decodeHexLUT(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
+void decodeHexLUT4(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
+
+void encodeHexLower(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
+void encodeHexUpper(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
+
+#ifdef __AVX__
+void encodeHex8LowerFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
+void encodeHex8UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
+#endif // __AVX__
+
+#if defined(__AVX2__)
+void decodeHexVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
+
+void encodeHexLowerVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
+void encodeHexUpperVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
+void encodeHex16LowerFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
+void encodeHex16UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
+#endif // defined(__AVX2__)
+
+/////////////////////////////////////////////////////////////////////////////
+
+namespace heks_detail
+{
+using namespace std::literals::string_view_literals;
+
 enum class HexCase
 {
     Lower,
     Upper
 };
 
-// Length of raw data in bytes (e.g "Test123" is 7 bytes)
-enum class RawLength : size_t;
-
-namespace heks_detail
-{
-using namespace std::literals::string_view_literals;
 
 // clang-format off
 // ASCII -> hex value as a string_view
@@ -371,23 +394,23 @@ HEX_FUNCTION_INLINE void decodeHexLUT4(uint8_t * FAST_HEX_RESTRICT dest, const u
 
 HEX_FUNCTION_INLINE void encodeHexLower(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
-    heks_detail::encodeHexImpl<HexCase::Lower>(dest, src, len);
+    heks_detail::encodeHexImpl<heks_detail::HexCase::Lower>(dest, src, len);
 }
 HEX_FUNCTION_INLINE void encodeHexUpper(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
-    heks_detail::encodeHexImpl<HexCase::Upper>(dest, src, len);
+    heks_detail::encodeHexImpl<heks_detail::HexCase::Upper>(dest, src, len);
 }
 
 
 #ifdef __AVX__
 HEX_FUNCTION_INLINE void encodeHex8LowerFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
 {
-    heks_detail::encodeHex8Fast<HexCase::Lower>(dest, src);
+    heks_detail::encodeHex8Fast<heks_detail::HexCase::Lower>(dest, src);
 }
 
 HEX_FUNCTION_INLINE void encodeHex8UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
 {
-    heks_detail::encodeHex8Fast<HexCase::Upper>(dest, src);
+    heks_detail::encodeHex8Fast<heks_detail::HexCase::Upper>(dest, src);
 }
 #endif // __AVX__
 
@@ -432,22 +455,22 @@ HEX_FUNCTION_INLINE void decodeHexVec(uint8_t * FAST_HEX_RESTRICT dest, const ui
 
 HEX_FUNCTION_INLINE void encodeHexLowerVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
-    heks_detail::encodeHexVecImpl<HexCase::Lower>(dest, src, len);
+    heks_detail::encodeHexVecImpl<heks_detail::HexCase::Lower>(dest, src, len);
 }
 HEX_FUNCTION_INLINE void encodeHexUpperVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
-    heks_detail::encodeHexVecImpl<HexCase::Upper>(dest, src, len);
+    heks_detail::encodeHexVecImpl<heks_detail::HexCase::Upper>(dest, src, len);
 }
 
 
 HEX_FUNCTION_INLINE void encodeHex16LowerFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
 {
-    heks_detail::encodeHex16Fast<HexCase::Lower>(dest, src);
+    heks_detail::encodeHex16Fast<heks_detail::HexCase::Lower>(dest, src);
 }
 
 HEX_FUNCTION_INLINE void encodeHex16UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
 {
-    heks_detail::encodeHex16Fast<HexCase::Upper>(dest, src);
+    heks_detail::encodeHex16Fast<heks_detail::HexCase::Upper>(dest, src);
 }
 #endif // defined(__AVX2__)
 
