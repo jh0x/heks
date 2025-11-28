@@ -9,7 +9,7 @@
 #include <cstring>
 #include <vector>
 
-#if FAST_HEX_USE_NAMESPACE
+#ifdef FAST_HEX_USE_NAMESPACE
 using namespace heks;
 #endif
 

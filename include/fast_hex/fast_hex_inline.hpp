@@ -18,7 +18,7 @@
 #    define FAST_HEX_RESTRICT __restrict__
 #endif
 
-#if FAST_HEX_USE_NAMESPACE
+#ifdef FAST_HEX_USE_NAMESPACE
 #    define FAST_HEX_NAMESPACE_OPEN \
         namespace heks \
         {
