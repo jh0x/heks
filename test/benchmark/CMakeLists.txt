@@ -29,7 +29,7 @@ target_compile_definitions(
 add_executable(fast_hex_bench_inline fast_hex_bench.cpp)
 target_link_libraries(
     fast_hex_bench_inline
-    PRIVATE fast_hex::fast_hex benchmark::benchmark benchmark::benchmark_main
+    PRIVATE fast_hex::headers benchmark::benchmark benchmark::benchmark_main
 )
 target_compile_features(fast_hex_bench_inline PRIVATE cxx_std_17)
 

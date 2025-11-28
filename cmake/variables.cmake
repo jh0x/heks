@@ -6,6 +6,7 @@
 # consumers can trivially build and package the project
 if(PROJECT_IS_TOP_LEVEL)
     option(fast_hex_DEVELOPER_MODE "Enable developer mode" OFF)
+    option(fast_hex_BUILD_LIBS "Build shared or static libs." ON)
     option(BUILD_SHARED_LIBS "Build shared libs." OFF)
     option(fast_hex_USE_NAMESPACE "Use heks namespace for fast_hex library" ON)
     option(fast_hex_ENABLE_MARCH_NATIVE "Enable -march=native" ON)
