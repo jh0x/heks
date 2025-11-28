@@ -1,4 +1,8 @@
-#include <fast_hex/fast_hex.hpp>
+#ifdef FAST_HEX_STATIC_SHARED_LIBRARY
+#    include <fast_hex/fast_hex.hpp>
+#else
+#    include "fast_hex/fast_hex_inline.hpp"
+#endif
 
 #include <benchmark/benchmark.h>
 

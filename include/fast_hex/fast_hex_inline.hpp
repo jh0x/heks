@@ -50,6 +50,9 @@ enum class HexCase
     Upper
 };
 
+// Length of raw data in bytes (e.g "Test123" is 7 bytes)
+enum class RawLength : size_t;
+
 namespace heks_detail
 {
 using namespace std::literals::string_view_literals;
