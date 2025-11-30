@@ -1,5 +1,7 @@
 #include "fast_hex/fast_hex.hpp"
 
+#include <iomanip>
+#include <sstream>
 #include <string>
 #include <string_view>
 
@@ -296,6 +298,12 @@ void testHexDecoding()
         CAPTURE(i);
         CAPTURE(hex_str_lower);
         CAPTURE(hex_str_upper);
+        std::ostringstream oss;
+        for (size_t j = 0; j < output_from_lower.size(); ++j)
+        {
+            oss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(static_cast<unsigned char>(output_from_lower[j]));
+        }
+        CAPTURE(oss.str());
         REQUIRE(output_from_lower == expected);
         REQUIRE(output_from_upper == expected);
     }
@@ -314,6 +322,13 @@ TEST_CASE("encodeHexVec")
 TEST_CASE("decodeHexVec_valid")
 {
     testHexDecoding<decodeHexVec>();
+}
+#endif
+
+#if FAST_HEX_NEON
+TEST_CASE("encodeHexNeonLower")
+{
+    testHexEncoding<encodeHexNeonLower, encodeHexNeonUpper>();
 }
 #endif
 

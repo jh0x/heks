@@ -35,7 +35,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * Data, size_t Size)
 #endif
     };
 
-#if defined(__AVX2__)
+#if defined(__AVX2__) || FAST_HEX_NEON
     auto test_encode_vec = [&](auto encode_func)
     {
         std::vector<uint8_t> encoded(encoded_size);
@@ -43,7 +43,9 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * Data, size_t Size)
         encode_func(encoded.data(), Data, RawLength{Size});
         decode(encoded, decodeHexLUT);
         decode(encoded, decodeHexLUT4);
+#    if defined(__AVX2__)
         decode(encoded, decodeHexVec);
+#    endif
     };
 #endif
 
@@ -52,6 +54,10 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * Data, size_t Size)
 #if defined(__AVX2__)
     test_encode_vec(encodeHexLowerVec);
     test_encode_vec(encodeHexUpperVec);
+#endif
+#if FAST_HEX_NEON
+    test_encode_vec(encodeHexNeonLower);
+    test_encode_vec(encodeHexNeonUpper);
 #endif
 
     return 0;

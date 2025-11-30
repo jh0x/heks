@@ -145,4 +145,17 @@ TEST_SUITE("encodeHexFast")
         run_tests_unaligned<16, 15>(test_cases_16, encodeHex16LowerFast, encodeHex16UpperFast);
     }
 #endif
+#if defined(FAST_HEX_NEON)
+    TEST_CASE("encodeHex8 NEON Fast")
+    {
+        run_tests_aligned<8>(test_cases_8, encodeHex8LowerNeon, encodeHex8UpperNeon);
+        run_tests_unaligned<8, 1>(test_cases_8, encodeHex8LowerNeon, encodeHex8UpperNeon);
+        run_tests_unaligned<8, 2>(test_cases_8, encodeHex8LowerNeon, encodeHex8UpperNeon);
+        run_tests_unaligned<8, 3>(test_cases_8, encodeHex8LowerNeon, encodeHex8UpperNeon);
+        run_tests_unaligned<8, 4>(test_cases_8, encodeHex8LowerNeon, encodeHex8UpperNeon);
+        run_tests_unaligned<8, 5>(test_cases_8, encodeHex8LowerNeon, encodeHex8UpperNeon);
+        run_tests_unaligned<8, 6>(test_cases_8, encodeHex8LowerNeon, encodeHex8UpperNeon);
+        run_tests_unaligned<8, 7>(test_cases_8, encodeHex8LowerNeon, encodeHex8UpperNeon);
+    }
+#endif
 }

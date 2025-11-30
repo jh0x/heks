@@ -14,6 +14,12 @@ include(cmake/project-is-top-level.cmake)
 include(cmake/variables.cmake)
 include(cmake/avx_support.cmake)
 
+# Apply -march=native globally if enabled
+if(fast_hex_ENABLE_MARCH_NATIVE)
+    message(STATUS "Enabling -march=native for all targets")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
+endif()
+
 # ---- Declare library ----
 
 add_library(fast_hex_headers INTERFACE)
@@ -85,11 +91,6 @@ if(fast_hex_BUILD_LIBS)
     target_compile_features(fast_hex_fast_hex PUBLIC cxx_std_17)
 
     fast_hex_target_enable_avx(fast_hex_fast_hex)
-
-    if(fast_hex_ENABLE_MARCH_NATIVE)
-        message(STATUS "Enabling -march=native for fast_hex library")
-        target_compile_options(fast_hex_fast_hex PRIVATE -march=native)
-    endif()
 endif()
 
 # ---- Install rules ----

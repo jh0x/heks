@@ -97,6 +97,16 @@ DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec, 1024, 1KB)
 DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec, 1024 * 1024, 1MB)
 #endif // defined(__AVX2__)
 
+#if FAST_HEX_NEON
+DEFINE_ENCODE_BENCHMARK(encodeHexNeonLower, 8, 8B)
+DEFINE_ENCODE_BENCHMARK_FAST(encodeHex8LowerNeon, 8, 8B)
+DEFINE_ENCODE_BENCHMARK(encodeHexNeonLower, 16, 16B)
+DEFINE_ENCODE_BENCHMARK(encodeHexNeonLower, 32, 32B)
+DEFINE_ENCODE_BENCHMARK(encodeHexNeonLower, 64, 64B)
+DEFINE_ENCODE_BENCHMARK(encodeHexNeonLower, 1024, 1KB)
+DEFINE_ENCODE_BENCHMARK(encodeHexNeonLower, 1024 * 1024, 1MB)
+#endif // FAST_HEX_NEON
+
 // ---- Decoding Benchmarks ----
 
 DEFINE_DECODE_BENCHMARK(decodeHexLUT, 8, 8B)

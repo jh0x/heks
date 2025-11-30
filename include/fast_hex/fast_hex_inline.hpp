@@ -12,6 +12,15 @@
 #    endif
 #endif
 
+// Define FAST_HEX_NEON macro based on multiple ARM detection methods
+#if defined(__ARM_NEON) || defined(__ARM_NEON__) || (defined(__aarch64__) && !defined(__ARM_ARCH_32BIT))
+#    define FAST_HEX_NEON 1
+#endif
+
+#if FAST_HEX_NEON
+#    include <arm_neon.h>
+#endif
+
 #if defined(_MSC_VER)
 #    define FAST_HEX_RESTRICT __restrict // The C99 keyword, available as a C++ extension
 #else
@@ -29,10 +38,11 @@
 #endif
 
 #ifdef FAST_HEX_STATIC_SHARED_LIBRARY
-#    define HEX_FUNCTION_INLINE
+#    define FAST_HEX_FUNCTION_INLINE
 #else
-#    define HEX_FUNCTION_INLINE inline
+#    define FAST_HEX_FUNCTION_INLINE inline
 #endif
+
 
 // This implementation is by https://github.com/zbjornson/fast-hex
 // Only introduced some minor modernisations and style changes to those functions
@@ -66,6 +76,11 @@ void encodeHexUpperVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HE
 void encodeHex16LowerFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
 void encodeHex16UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
 #endif // defined(__AVX2__)
+
+#if FAST_HEX_NEON
+void encodeHexNeonLower(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
+void encodeHexNeonUpper(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
+#endif // FAST_HEX_NEON
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -169,12 +184,13 @@ constexpr uint8_t unhexA(uint8_t x)
     return static_cast<uint8_t>(unhex_table4_sv[x]);
 }
 
-#if defined(__AVX2__)
 constexpr int8_t unhexBitManip(uint8_t x)
 {
     return 9 * (x >> 6) + (x & 0xf);
 }
 
+
+#if defined(__AVX2__)
 inline const __m256i _9 = _mm256_set1_epi16(9);
 inline const __m256i _15 = _mm256_set1_epi16(0xf);
 
@@ -253,6 +269,8 @@ inline __m256i byte2nib(__m128i val)
     return bytes;
 }
 
+#endif // defined(__AVX2__)
+
 // len is number or dest bytes (i.e. half of src length)
 inline void decodeHexBMI(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
@@ -266,8 +284,6 @@ inline void decodeHexBMI(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_
         dest[i] = static_cast<uint8_t>((a << 4) | b);
     }
 }
-
-#endif // defined(__AVX2__)
 
 // clang-format off
 // Hex character lookup as a string_view
@@ -358,11 +374,106 @@ inline void encodeHex16Fast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FA
 }
 #endif // defined(__AVX2__)
 
+#if FAST_HEX_NEON
+template <HexCase H>
+void encodeHexNeon_impl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength raw_len)
+{
+    auto len = static_cast<size_t>(raw_len);
+    // clang-format off
+    alignas(8) constexpr uint8_t HEX_LUT_LOWER[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+    alignas(8) constexpr uint8_t HEX_LUT_UPPER[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
+    // clang-format on
+
+    // Pick and load the right LUTs based on HexCase
+    const uint8_t * lut1 = (H == HexCase::Upper) ? HEX_LUT_UPPER : HEX_LUT_LOWER;
+    const uint8_t * lut2 = (H == HexCase::Upper) ? (HEX_LUT_UPPER + 8) : (HEX_LUT_LOWER + 8);
+    uint8x8_t lut_vec1 = vld1_u8(lut1);
+    uint8x8_t lut_vec2 = vld1_u8(lut2);
+
+    size_t i = 0;
+
+    while (len >= 16)
+    {
+        // Load 16 bytes from the source
+        uint8x16_t invec = vld1q_u8(src + i);
+
+        // Extract high and low nibbles
+        uint8x16_t hi_nibbles = vshrq_n_u8(invec, 4); // Shift right by 4 bits (high nibble)
+        uint8x16_t lo_nibbles = vandq_u8(invec, vdupq_n_u8(0x0F)); // Mask lower 4 bits (low nibble)
+
+        // Process the low 8 bytes
+        uint8x8_t hi_lo = vget_low_u8(hi_nibbles);
+        uint8x8_t lo_lo = vget_low_u8(lo_nibbles);
+
+        // Lookup the hex characters
+        uint8x8_t hi_chars_lo = vtbl2_u8({lut_vec1, lut_vec2}, hi_lo);
+        uint8x8_t lo_chars_lo = vtbl2_u8({lut_vec1, lut_vec2}, lo_lo);
+
+        // Process the high 8 bytes
+        uint8x8_t hi_hi = vget_high_u8(hi_nibbles);
+        uint8x8_t lo_hi = vget_high_u8(lo_nibbles);
+
+        // Lookup the hex characters
+        uint8x8_t hi_chars_hi = vtbl2_u8({lut_vec1, lut_vec2}, hi_hi);
+        uint8x8_t lo_chars_hi = vtbl2_u8({lut_vec1, lut_vec2}, lo_hi);
+
+        // Combine the low and high parts of the results
+        uint8x16_t hi_chars = vcombine_u8(hi_chars_lo, hi_chars_hi);
+        uint8x16_t lo_chars = vcombine_u8(lo_chars_lo, lo_chars_hi);
+
+        // Zip high and low
+        uint8x16x2_t interleaved = vzipq_u8(hi_chars, lo_chars);
+
+        // Store the zipped result
+        vst1q_u8(dest + (i * 2), interleaved.val[0]);
+        vst1q_u8(dest + (i * 2) + 16, interleaved.val[1]);
+
+        i += 16;
+        len -= 16;
+    }
+
+    encodeHexImpl<H>(dest + (i * 2), src + i, RawLength{len});
+}
+
+template <HexCase H>
+void encodeHexNeon8_impl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
+{
+    static const uint8_t HEX_LUT_LOWER[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+    static const uint8_t HEX_LUT_UPPER[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
+
+    const uint8_t * lut1 = (H == HexCase::Upper) ? HEX_LUT_UPPER : HEX_LUT_LOWER;
+    const uint8_t * lut2 = (H == HexCase::Upper) ? HEX_LUT_UPPER + 8 : HEX_LUT_LOWER + 8;
+
+    uint8x8_t lut_vec1 = vld1_u8(lut1);
+    uint8x8_t lut_vec2 = vld1_u8(lut2);
+
+    uint8x8x2_t tbl;
+    tbl.val[0] = lut_vec1;
+    tbl.val[1] = lut_vec2;
+
+    uint8x8_t in = vld1_u8(src);
+
+    uint8x8_t hi = vshr_n_u8(in, 4);
+    uint8x8_t lo = vand_u8(in, vdup_n_u8(0x0F));
+
+    uint8x8_t hi_chars = vtbl2_u8(tbl, hi);
+    uint8x8_t lo_chars = vtbl2_u8(tbl, lo);
+
+    uint8x8x2_t zipped = vzip_u8(hi_chars, lo_chars);
+    uint8x8_t out0 = zipped.val[0];
+    uint8x8_t out1 = zipped.val[1];
+
+    vst1_u8(dest, out0);
+    vst1_u8(dest + 8, out1);
+}
+
+#endif // FAST_HEX_NEON
+
 } // namespace heks_detail
 
 
 // len is number of dest bytes
-HEX_FUNCTION_INLINE void decodeHexLUT(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+FAST_HEX_FUNCTION_INLINE void decodeHexLUT(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
     using namespace heks_detail;
     const auto raw_length = static_cast<size_t>(len);
@@ -377,7 +488,7 @@ HEX_FUNCTION_INLINE void decodeHexLUT(uint8_t * FAST_HEX_RESTRICT dest, const ui
 }
 
 // len is number of dest bytes
-HEX_FUNCTION_INLINE void decodeHexLUT4(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+FAST_HEX_FUNCTION_INLINE void decodeHexLUT4(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
     using namespace heks_detail;
     const auto raw_length = static_cast<size_t>(len);
@@ -392,23 +503,23 @@ HEX_FUNCTION_INLINE void decodeHexLUT4(uint8_t * FAST_HEX_RESTRICT dest, const u
 }
 
 
-HEX_FUNCTION_INLINE void encodeHexLower(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+FAST_HEX_FUNCTION_INLINE void encodeHexLower(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
     heks_detail::encodeHexImpl<heks_detail::HexCase::Lower>(dest, src, len);
 }
-HEX_FUNCTION_INLINE void encodeHexUpper(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+FAST_HEX_FUNCTION_INLINE void encodeHexUpper(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
     heks_detail::encodeHexImpl<heks_detail::HexCase::Upper>(dest, src, len);
 }
 
 
 #ifdef __AVX__
-HEX_FUNCTION_INLINE void encodeHex8LowerFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
+FAST_HEX_FUNCTION_INLINE void encodeHex8LowerFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
 {
     heks_detail::encodeHex8Fast<heks_detail::HexCase::Lower>(dest, src);
 }
 
-HEX_FUNCTION_INLINE void encodeHex8UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
+FAST_HEX_FUNCTION_INLINE void encodeHex8UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
 {
     heks_detail::encodeHex8Fast<heks_detail::HexCase::Upper>(dest, src);
 }
@@ -417,7 +528,7 @@ HEX_FUNCTION_INLINE void encodeHex8UpperFast(uint8_t * FAST_HEX_RESTRICT dest, c
 #if defined(__AVX2__)
 
 // len is number or dest bytes (i.e. half of src length)
-HEX_FUNCTION_INLINE void decodeHexVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+FAST_HEX_FUNCTION_INLINE void decodeHexVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
     using namespace heks_detail;
     auto raw_length = static_cast<size_t>(len);
@@ -453,25 +564,48 @@ HEX_FUNCTION_INLINE void decodeHexVec(uint8_t * FAST_HEX_RESTRICT dest, const ui
     decodeHexBMI(dest, src, RawLength{raw_length});
 }
 
-HEX_FUNCTION_INLINE void encodeHexLowerVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+FAST_HEX_FUNCTION_INLINE void encodeHexLowerVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
     heks_detail::encodeHexVecImpl<heks_detail::HexCase::Lower>(dest, src, len);
 }
-HEX_FUNCTION_INLINE void encodeHexUpperVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+FAST_HEX_FUNCTION_INLINE void encodeHexUpperVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
     heks_detail::encodeHexVecImpl<heks_detail::HexCase::Upper>(dest, src, len);
 }
 
 
-HEX_FUNCTION_INLINE void encodeHex16LowerFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
+FAST_HEX_FUNCTION_INLINE void encodeHex16LowerFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
 {
     heks_detail::encodeHex16Fast<heks_detail::HexCase::Lower>(dest, src);
 }
 
-HEX_FUNCTION_INLINE void encodeHex16UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
+FAST_HEX_FUNCTION_INLINE void encodeHex16UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
 {
     heks_detail::encodeHex16Fast<heks_detail::HexCase::Upper>(dest, src);
 }
 #endif // defined(__AVX2__)
+
+#if FAST_HEX_NEON
+
+FAST_HEX_FUNCTION_INLINE void encodeHexNeonLower(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+{
+    heks_detail::encodeHexNeon_impl<heks_detail::HexCase::Lower>(dest, src, len);
+}
+
+FAST_HEX_FUNCTION_INLINE void encodeHexNeonUpper(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+{
+    heks_detail::encodeHexNeon_impl<heks_detail::HexCase::Upper>(dest, src, len);
+}
+
+FAST_HEX_FUNCTION_INLINE void encodeHex8LowerNeon(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
+{
+    heks_detail::encodeHexNeon8_impl<heks_detail::HexCase::Lower>(dest, src);
+}
+FAST_HEX_FUNCTION_INLINE void encodeHex8UpperNeon(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
+{
+    heks_detail::encodeHexNeon8_impl<heks_detail::HexCase::Upper>(dest, src);
+}
+
+#endif
 
 FAST_HEX_NAMESPACE_CLOSE

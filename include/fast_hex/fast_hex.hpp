@@ -11,6 +11,11 @@
 #    define FAST_HEX_RESTRICT __restrict__
 #endif
 
+// Define FAST_HEX_NEON macro based on multiple ARM detection methods
+#if defined(__ARM_NEON) || defined(__ARM_NEON__) || (defined(__aarch64__) && !defined(__ARM_ARCH_32BIT))
+#    define FAST_HEX_NEON 1
+#endif
+
 #if FAST_HEX_USE_NAMESPACE
 #    define FAST_HEX_NAMESPACE_OPEN \
         namespace heks \
@@ -75,5 +80,13 @@ FAST_HEX_EXPORT void encodeHexUpperVec(uint8_t * FAST_HEX_RESTRICT dest, const u
 FAST_HEX_EXPORT void encodeHex16LowerFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
 FAST_HEX_EXPORT void encodeHex16UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
 #endif // defined(__AVX2__)
+
+#if FAST_HEX_NEON
+// ARM NEON optimized version
+FAST_HEX_EXPORT void encodeHexNeonLower(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
+FAST_HEX_EXPORT void encodeHexNeonUpper(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
+FAST_HEX_EXPORT void encodeHex8LowerNeon(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
+FAST_HEX_EXPORT void encodeHex8UpperNeon(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
+#endif // FAST_HEX_NEON
 
 FAST_HEX_NAMESPACE_CLOSE
