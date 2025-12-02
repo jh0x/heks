@@ -11,7 +11,14 @@
 #    define FAST_HEX_RESTRICT __restrict__
 #endif
 
-// Define FAST_HEX_NEON macro based on multiple ARM detection methods
+#if defined(__ARM_ARCH) || defined(__aarch64__) || defined(__arm__) || defined(_M_ARM) || defined(_M_ARM64)
+#    define FAST_HEX_ARM 1
+#endif
+
+#if defined(FAST_HEX_ARM) && __ARM_ARCH >= 8
+#    define FAST_HEX_ARM_BITMANIP 1
+#endif
+
 #if defined(__ARM_NEON) || defined(__ARM_NEON__) || (defined(__aarch64__) && !defined(__ARM_ARCH_32BIT))
 #    define FAST_HEX_NEON 1
 #endif
@@ -35,12 +42,16 @@ FAST_HEX_NAMESPACE_OPEN
 enum class RawLength : size_t;
 
 // Scalar look-up table version (two chars at a time). Uses a single lookup table, but requires a shift.
-// [0xAB, 0xCD] -> [a = 0xA, b = 0xB] -> dest = (a << 4) | b = 0xAB
+// [0xAB, 0xCD] -> [a = 0xA, b = 0xB] -> dest = (a << 4) | b = 0xAB ...
 FAST_HEX_EXPORT void decodeHexLUT(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
 
 // Scalar look-up table version (two chars at a time). Uses two lookup tables to avoid the shift.
-// [0xAB, 0xCD] -> [a = 0xA, b = 0xB] -> dest = a | b = 0xAB
+// [0xAB, 0xCD] -> [a = 0xA, b = 0xB] -> dest = a | b = 0xAB ...
 FAST_HEX_EXPORT void decodeHexLUT4(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
+
+// Decodes hexadecimal pairs using bit manipulation instructions to extract and combine the nibbles.
+// [0xAB, 0xCD] -> 0xAB ... by directly applying bit manipulation to extract each nibble
+FAST_HEX_EXPORT void decodeHexBMI(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
 
 #if defined(__AVX2__)
 // Optimal AVX2 vectorized version. len is number of dest bytes (1/2 the size of src).

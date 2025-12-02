@@ -341,3 +341,8 @@ TEST_CASE("decodeHexLUT4_valid")
 {
     testHexDecoding<decodeHexLUT4>();
 }
+
+TEST_CASE("decodeHexBMI_valid")
+{
+    testHexDecoding<decodeHexBMI>();
+}

@@ -30,6 +30,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * Data, size_t Size)
 
         decode(encoded, decodeHexLUT);
         decode(encoded, decodeHexLUT4);
+        decode(encoded, decodeHexBMI);
 #if defined(__AVX2__)
         decode(encoded, decodeHexVec);
 #endif

@@ -12,7 +12,10 @@
 #    endif
 #endif
 
-// Define FAST_HEX_NEON macro based on multiple ARM detection methods
+#if defined(__ARM_ARCH) || defined(__aarch64__) || defined(__arm__) || defined(_M_ARM) || defined(_M_ARM64)
+#    define FAST_HEX_ARM 1
+#endif
+
 #if defined(__ARM_NEON) || defined(__ARM_NEON__) || (defined(__aarch64__) && !defined(__ARM_ARCH_32BIT))
 #    define FAST_HEX_NEON 1
 #endif
@@ -48,6 +51,7 @@
 // Only introduced some minor modernisations and style changes to those functions
 // decodeHexLUT
 // decodeHexLUT4
+// decodeHexBMI
 // decodeHexVec
 // encodeHexImpl
 // encodeHexVecImpl
@@ -271,20 +275,6 @@ inline __m256i byte2nib(__m128i val)
 
 #endif // defined(__AVX2__)
 
-// len is number or dest bytes (i.e. half of src length)
-inline void decodeHexBMI(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
-{
-    const auto raw_length = static_cast<size_t>(len);
-    for (size_t i = 0; i < raw_length; i++)
-    {
-        uint8_t a = *src++;
-        uint8_t b = *src++;
-        a = static_cast<uint8_t>(unhexBitManip(a));
-        b = static_cast<uint8_t>(unhexBitManip(b));
-        dest[i] = static_cast<uint8_t>((a << 4) | b);
-    }
-}
-
 // clang-format off
 // Hex character lookup as a string_view
 constexpr std::string_view hex_table_lower_sv = "0123456789abcdef"sv;
@@ -499,6 +489,22 @@ FAST_HEX_FUNCTION_INLINE void decodeHexLUT4(uint8_t * FAST_HEX_RESTRICT dest, co
         a = unhexA(a);
         b = unhexB(b);
         dest[i] = a | b;
+    }
+}
+
+
+// len is number or dest bytes (i.e. half of src length)
+FAST_HEX_FUNCTION_INLINE void decodeHexBMI(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+{
+    using namespace heks_detail;
+    const auto raw_length = static_cast<size_t>(len);
+    for (size_t i = 0; i < raw_length; i++)
+    {
+        uint8_t a = *src++;
+        uint8_t b = *src++;
+        a = static_cast<uint8_t>(unhexBitManip(a));
+        b = static_cast<uint8_t>(unhexBitManip(b));
+        dest[i] = static_cast<uint8_t>((a << 4) | b);
     }
 }
 

@@ -79,6 +79,11 @@ TEST_CASE("decodeHexLUT4_invalid")
     testInvalidHexDecoding<decodeHexLUT4>();
 }
 
+TEST_CASE("decodeHexBMI_invalid")
+{
+    testInvalidHexDecoding<decodeHexBMI>();
+}
+
 #if defined(__AVX2__)
 TEST_CASE("decodeHexVec_invalid")
 {
