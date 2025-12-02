@@ -64,6 +64,16 @@
       }
     },
     {
+      "name": "flags-gcc-clang-arm",
+      "description": "GCC/Clang flags for ARM (without cf-protection which is not supported)",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_CXX_FLAGS": "-D_GLIBCXX_ASSERTIONS=1 -fstack-protector-strong -fstack-clash-protection -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wcast-qual -Wformat=2 -Wundef -Werror=float-equal -Wshadow -Wcast-align -Wunused -Wnull-dereference -Wdouble-promotion -Wimplicit-fallthrough -Wextra-semi -Woverloaded-virtual -Wnon-virtual-dtor -Wold-style-cast",
+        "CMAKE_EXE_LINKER_FLAGS": "-Wl,--allow-shlib-undefined,--as-needed,-z,noexecstack,-z,relro,-z,now,-z,nodlopen",
+        "CMAKE_SHARED_LINKER_FLAGS": "-Wl,--allow-shlib-undefined,--as-needed,-z,noexecstack,-z,relro,-z,now,-z,nodlopen"
+      }
+    },
+    {
       "name": "flags-appleclang",
       "hidden": true,
       "cacheVariables": {
@@ -84,6 +94,17 @@
       "name": "ci-linux",
       "description": "Includes fortification with the CMake default release flags",
       "inherits": ["flags-gcc-clang", "ci-std"],
+      "generator": "Unix Makefiles",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_FLAGS_RELEASE": "-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=3 -O3 -DNDEBUG"
+      }
+    },
+    {
+      "name": "ci-linux-arm",
+      "description": "Linux ARM64 preset without cf-protection flags",
+      "inherits": ["flags-gcc-clang-arm", "ci-std"],
       "generator": "Unix Makefiles",
       "hidden": true,
       "cacheVariables": {
@@ -153,6 +174,10 @@
     {
       "name": "ci-ubuntu",
       "inherits": ["ci-build", "ci-linux", "clang-tidy", "cppcheck", "dev-mode"]
+    },
+    {
+      "name": "ci-ubuntu-arm",
+      "inherits": ["ci-build", "ci-linux-arm", "dev-mode"]
     },
     {
       "name": "ci-windows",

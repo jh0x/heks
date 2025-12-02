@@ -184,6 +184,38 @@ jobs:
       working-directory: build
       run: ctest --output-on-failure --no-tests=error -C ${{ matrix.build_type }} -j 2
 
+  test-arm64:
+    needs: [lint]
+
+    runs-on: ubuntu-24.04-arm
+
+    strategy:
+      matrix:
+        build_type: [Debug, Release]
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install dependencies
+      run: >-
+        sudo apt-get update && sudo apt-get install build-essential cmake git clang-18 -y -q
+
+    - name: Configure
+      shell: pwsh
+      run: cmake --preset=ci-ubuntu-arm
+        -D CMAKE_C_COMPILER=clang-18
+        -D CMAKE_CXX_COMPILER=clang++-18
+        -D CMAKE_BUILD_TYPE=${{ matrix.build_type }}
+
+    - name: Build
+      run: cmake --build build -j 2
+
+    - name: Test
+      working-directory: build
+      run: ctest --output-on-failure --no-tests=error -j 2
+
   fuzz:
     needs: [lint]
 
