@@ -1,4 +1,9 @@
-#include "fast_hex/fast_hex.hpp"
+#ifdef FAST_HEX_STATIC_SHARED_LIBRARY
+#    include <fast_hex/fast_hex.hpp>
+#else
+#    include "fast_hex/fast_hex_inline.hpp"
+#endif
+
 
 #include <iomanip>
 #include <sstream>
@@ -325,12 +330,28 @@ TEST_CASE("decodeHexVec_valid")
 }
 #endif
 
-#if FAST_HEX_NEON
+#if defined(FAST_HEX_NEON)
 TEST_CASE("encodeHexNeonLower")
 {
     testHexEncoding<encodeHexNeonLower, encodeHexNeonUpper>();
 }
 #endif
+
+#ifndef FAST_HEX_STATIC_SHARED_LIBRARY
+static void eu(uint8_t * d, const uint8_t * s, RawLength n)
+{
+    encode_auto(d, s, n, upper);
+}
+static void el(uint8_t * d, const uint8_t * s, RawLength n)
+{
+    encode_auto(d, s, n, lower);
+}
+TEST_CASE("encode_auto_invalid")
+{
+    testHexEncoding<el, eu>();
+}
+#endif
+
 
 TEST_CASE("decodeHexLUT_valid")
 {
@@ -346,3 +367,10 @@ TEST_CASE("decodeHexBMI_valid")
 {
     testHexDecoding<decodeHexBMI>();
 }
+
+#ifndef FAST_HEX_STATIC_SHARED_LIBRARY
+TEST_CASE("decode_auto_invalid")
+{
+    testHexDecoding<decode_auto>();
+}
+#endif

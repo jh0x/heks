@@ -20,7 +20,7 @@
 #    define FAST_HEX_NEON 1
 #endif
 
-#if FAST_HEX_NEON
+#if defined(FAST_HEX_NEON)
 #    include <arm_neon.h>
 #endif
 
@@ -81,7 +81,7 @@ void encodeHex16LowerFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST
 void encodeHex16UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
 #endif // defined(__AVX2__)
 
-#if FAST_HEX_NEON
+#if defined(FAST_HEX_NEON)
 void encodeHexNeonLower(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
 void encodeHexNeonUpper(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
 #endif // FAST_HEX_NEON
@@ -364,7 +364,7 @@ inline void encodeHex16Fast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FA
 }
 #endif // defined(__AVX2__)
 
-#if FAST_HEX_NEON
+#if defined(FAST_HEX_NEON)
 template <HexCase H>
 void encodeHexNeon_impl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength raw_len)
 {
@@ -591,7 +591,7 @@ FAST_HEX_FUNCTION_INLINE void encodeHex16UpperFast(uint8_t * FAST_HEX_RESTRICT d
 }
 #endif // defined(__AVX2__)
 
-#if FAST_HEX_NEON
+#if defined(FAST_HEX_NEON)
 
 FAST_HEX_FUNCTION_INLINE void encodeHexNeonLower(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
@@ -613,5 +613,55 @@ FAST_HEX_FUNCTION_INLINE void encodeHex8UpperNeon(uint8_t * FAST_HEX_RESTRICT de
 }
 
 #endif
+
+struct upper_t
+{
+    static constexpr heks_detail::HexCase value = heks_detail::HexCase::Upper;
+};
+struct lower_t
+{
+    static constexpr heks_detail::HexCase value = heks_detail::HexCase::Lower;
+};
+inline constexpr upper_t upper{};
+inline constexpr lower_t lower{};
+
+template <class Case>
+inline void encode_auto(uint8_t * FAST_HEX_RESTRICT d, const uint8_t * FAST_HEX_RESTRICT s, RawLength n, Case)
+{
+    constexpr auto case_type = Case::value;
+#if defined(__x86_64__) || defined(_M_X64)
+#    if defined(__AVX2__)
+    heks_detail::encodeHexVecImpl<case_type>(d, s, n);
+#    else
+    heks_detail::encodeHexImpl<case_type>(d, s, n);
+#    endif
+#elif defined(FAST_HEX_NEON)
+    heks_detail::encodeHexNeon_impl<case_type>(d, s, n);
+#else
+    heks_detail::encodeHexImpl<case_type>(d, s, n);
+#endif
+}
+
+inline void decode_auto(uint8_t * FAST_HEX_RESTRICT d, const uint8_t * FAST_HEX_RESTRICT s, RawLength n)
+{
+#if defined(__x86_64__) || defined(_M_X64)
+#    if defined(__AVX2__)
+    decodeHexVec(d, s, n);
+#    elif defined(__BMI__)
+    decodeHexBMI(d, s, n);
+#    else
+    decodeHexLUT4(d, s, n);
+#    endif
+#elif defined(__arm__) || defined(__aarch64__) || defined(_M_ARM) || defined(_M_ARM64)
+#    if defined(FAST_HEX_ARM)
+    decodeHexBMI(d, s, n);
+#    else
+    decodeHexLUT(d, s, n);
+#    endif
+#else
+    decodeHexLUT4(d, s, n);
+#endif
+}
+
 
 FAST_HEX_NAMESPACE_CLOSE

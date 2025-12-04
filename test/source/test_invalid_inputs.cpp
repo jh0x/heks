@@ -1,4 +1,8 @@
-#include "fast_hex/fast_hex.hpp"
+#ifdef FAST_HEX_STATIC_SHARED_LIBRARY
+#    include <fast_hex/fast_hex.hpp>
+#else
+#    include "fast_hex/fast_hex_inline.hpp"
+#endif
 
 #include <string>
 #include <string_view>
@@ -83,6 +87,14 @@ TEST_CASE("decodeHexBMI_invalid")
 {
     testInvalidHexDecoding<decodeHexBMI>();
 }
+
+#ifndef FAST_HEX_STATIC_SHARED_LIBRARY
+TEST_CASE("decode_auto_invalid")
+{
+    testInvalidHexDecoding<decode_auto>();
+}
+#endif
+
 
 #if defined(__AVX2__)
 TEST_CASE("decodeHexVec_invalid")

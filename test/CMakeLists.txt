@@ -1,6 +1,6 @@
 add_subdirectory(source)
 
-if(ENABLE_FUZZ)
+if(fast_hex_ENABLE_FUZZ)
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         add_subdirectory(fuzz)
     else()
@@ -11,6 +11,6 @@ if(ENABLE_FUZZ)
     endif()
 endif()
 
-if(ENABLE_BENCHMARK)
+if(fast_hex_ENABLE_BENCHMARK)
     add_subdirectory(benchmark)
 endif()

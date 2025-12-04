@@ -15,10 +15,6 @@
 #    define FAST_HEX_ARM 1
 #endif
 
-#if defined(FAST_HEX_ARM) && __ARM_ARCH >= 8
-#    define FAST_HEX_ARM_BITMANIP 1
-#endif
-
 #if defined(__ARM_NEON) || defined(__ARM_NEON__) || (defined(__aarch64__) && !defined(__ARM_ARCH_32BIT))
 #    define FAST_HEX_NEON 1
 #endif
@@ -92,7 +88,7 @@ FAST_HEX_EXPORT void encodeHex16LowerFast(uint8_t * FAST_HEX_RESTRICT dest, cons
 FAST_HEX_EXPORT void encodeHex16UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
 #endif // defined(__AVX2__)
 
-#if FAST_HEX_NEON
+#if defined(FAST_HEX_NEON)
 // ARM NEON optimized version
 FAST_HEX_EXPORT void encodeHexNeonLower(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
 FAST_HEX_EXPORT void encodeHexNeonUpper(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);

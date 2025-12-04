@@ -165,7 +165,7 @@ jobs:
     - name: Configure
       shell: pwsh
       run: cmake "--preset=ci-$("${{ matrix.os }}".split("-")[0])"
-        -D BUILD_SHARED_LIBS=${{ matrix.shared }}
+        -D fast_hex_BUILD_SHARED_LIBS=${{ matrix.shared }}
         -D CMAKE_C_COMPILER=${{ matrix.cc }}
         -D CMAKE_CXX_COMPILER=${{ matrix.cxx }}
         -D CMAKE_BUILD_TYPE=${{ matrix.build_type }}
@@ -236,7 +236,7 @@ jobs:
         -D CMAKE_C_COMPILER=clang-18
         -D CMAKE_CXX_COMPILER=clang++-18
         -D CMAKE_BUILD_TYPE=Release
-        -D ENABLE_FUZZ=ON
+        -D fast_hex_ENABLE_FUZZ=ON
 
     - name: Build
       run: cmake --build build -j 2

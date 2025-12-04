@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <vector>
 
@@ -20,7 +21,10 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * Data, size_t Size)
     {
         std::vector<uint8_t> decoded(decoded_size);
         decode_func(decoded.data(), source.data(), RawLength{decoded_size});
-        assert(std::memcmp(Data, decoded.data(), decoded_size) == 0);
+        if (std::memcmp(Data, decoded.data(), decoded_size) != 0)
+        {
+            std::abort();
+        }
     };
 
     auto test_encode_scalar = [&](auto encode_func)
@@ -56,7 +60,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * Data, size_t Size)
     test_encode_vec(encodeHexLowerVec);
     test_encode_vec(encodeHexUpperVec);
 #endif
-#if FAST_HEX_NEON
+#if defined(FAST_HEX_NEON)
     test_encode_vec(encodeHexNeonLower);
     test_encode_vec(encodeHexNeonUpper);
 #endif

@@ -45,7 +45,7 @@ if(fast_hex_BUILD_LIBS)
         CUSTOM_CONTENT_FROM_VARIABLE pragma_suppress_c4251
     )
 
-    if(NOT BUILD_SHARED_LIBS)
+    if(NOT fast_hex_BUILD_SHARED_LIBS)
         target_compile_definitions(
             fast_hex_fast_hex
             PUBLIC FAST_HEX_STATIC_DEFINE
