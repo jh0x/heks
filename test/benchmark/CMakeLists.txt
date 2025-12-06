@@ -20,7 +20,7 @@ target_link_libraries(
     fast_hex_bench
     PRIVATE fast_hex::fast_hex benchmark::benchmark benchmark::benchmark_main
 )
-target_compile_features(fast_hex_bench PRIVATE cxx_std_17)
+target_compile_features(fast_hex_bench PRIVATE cxx_std_20)
 target_compile_definitions(
     fast_hex_bench
     PRIVATE FAST_HEX_STATIC_SHARED_LIBRARY
@@ -31,7 +31,7 @@ target_link_libraries(
     fast_hex_bench_inline
     PRIVATE fast_hex::headers benchmark::benchmark benchmark::benchmark_main
 )
-target_compile_features(fast_hex_bench_inline PRIVATE cxx_std_17)
+target_compile_features(fast_hex_bench_inline PRIVATE cxx_std_20)
 
 # ---- AVX Support ----
 include(../../cmake/avx_support.cmake)

@@ -2,7 +2,7 @@
 function(add_fuzz_target TARGET_NAME FUZZ_SOURCE_FILE)
     add_executable(${TARGET_NAME} ${FUZZ_SOURCE_FILE})
     target_link_libraries(${TARGET_NAME} PRIVATE fast_hex::fast_hex)
-    target_compile_features(${TARGET_NAME} PRIVATE cxx_std_17)
+    target_compile_features(${TARGET_NAME} PRIVATE cxx_std_20)
     target_compile_options(
         ${TARGET_NAME}
         PRIVATE -fsanitize=fuzzer -fsanitize=address -fno-omit-frame-pointer

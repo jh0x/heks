@@ -1,0 +1,217 @@
+#include "fast_hex/fast_hex_inline.hpp"
+
+#include <cstdint>
+#include <cstring>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#include <doctest/doctest.h>
+
+using namespace std::literals::string_view_literals;
+#if FAST_HEX_USE_NAMESPACE
+using namespace heks;
+#endif
+
+struct TestCase8
+{
+    uint64_t input;
+    std::string_view expected_lower;
+    std::string_view expected_upper;
+};
+
+static constexpr TestCase8 test_cases8[] = {{0x0011223344556677ULL, "0011223344556677"sv, "0011223344556677"sv},
+                                            {0x00AABBCCDDEEFF99ULL, "00aabbccddeeff99"sv, "00AABBCCDDEEFF99"sv},
+                                            {0x0000000000000000ULL, "0000000000000000"sv, "0000000000000000"sv},
+                                            {0xFFFFFFFFFFFFFFFFULL, "ffffffffffffffff"sv, "FFFFFFFFFFFFFFFF"sv},
+                                            {0x123456789ABCDEF0ULL, "123456789abcdef0"sv, "123456789ABCDEF0"sv},
+                                            {0x0000000FF1CEFACEULL, "0000000ff1ceface"sv, "0000000FF1CEFACE"sv},
+                                            {0x00BAB10CCAFEBABEULL, "00bab10ccafebabe"sv, "00BAB10CCAFEBABE"sv},
+                                            {0x1BADB002DEADBEEFULL, "1badb002deadbeef"sv, "1BADB002DEADBEEF"sv},
+                                            {0x4B1D0000FEEDFACEULL, "4b1d0000feedface"sv, "4B1D0000FEEDFACE"sv},
+                                            {0x50FFC001BAADF00DULL, "50ffc001baadf00d"sv, "50FFC001BAADF00D"sv},
+                                            {0xABADBABECAFEBABEULL, "abadbabecafebabe"sv, "ABADBABECAFEBABE"sv},
+                                            {0xACE0FBA5FEEDC0DEULL, "ace0fba5feedc0de"sv, "ACE0FBA5FEEDC0DE"sv},
+                                            {0xB105F00DDEADBEEFULL, "b105f00ddeadbeef"sv, "B105F00DDEADBEEF"sv},
+                                            {0xB16B00B5BAADF00DULL, "b16b00b5baadf00d"sv, "B16B00B5BAADF00D"sv},
+                                            {0x0B00B13500BAD00BULL, "0b00b13500bad00b"sv, "0B00B13500BAD00B"sv},
+                                            {0xBAAAAAADDEADFEEDULL, "baaaaaaddeadfeed"sv, "BAAAAAADDEADFEED"sv},
+                                            {0xBAADF00DFEEDBABEULL, "baadf00dfeedbabe"sv, "BAADF00DFEEDBABE"sv},
+                                            {0xBAD22222CAFED00DULL, "bad22222cafed00d"sv, "BAD22222CAFED00D"sv},
+                                            {0xBADDCAFEDECAFBADULL, "baddcafedecafbad"sv, "BADDCAFEDECAFBAD"sv},
+                                            {0xBEEFBABEFACEFEEDULL, "beefbabefacefeed"sv, "BEEFBABEFACEFEED"sv},
+                                            {0xCAFEBABE0D15EA5EULL, "cafebabe0d15ea5e"sv, "CAFEBABE0D15EA5E"sv},
+                                            {0xCAFED00DDABBAD00ULL, "cafed00ddabbad00"sv, "CAFED00DDABBAD00"sv},
+                                            {0x0D15EA5EDEADBAADULL, "0d15ea5edeadbaad"sv, "0D15EA5EDEADBAAD"sv},
+                                            {0xDABBAD00DEADBABEULL, "dabbad00deadbabe"sv, "DABBAD00DEADBABE"sv},
+                                            {0xDEAD2BADDEADBEAFULL, "dead2baddeadbeaf"sv, "DEAD2BADDEADBEAF"sv},
+                                            {0xDEADBABEDEADC0DEULL, "deadbabedeadc0de"sv, "DEADBABEDEADC0DE"sv},
+                                            {0xDEADBEAFDEADDEADULL, "deadbeafdeaddead"sv, "DEADBEAFDEADDEAD"sv},
+                                            {0xDEADC0DEDEADFA11ULL, "deadc0dedeadfa11"sv, "DEADC0DEDEADFA11"sv},
+                                            {0xDEADDEADDEAD10CCULL, "deaddeaddead10cc"sv, "DEADDEADDEAD10CC"sv},
+                                            {0xDEADD00DDEADFEEDULL, "deadd00ddeadfeed"sv, "DEADD00DDEADFEED"sv},
+                                            {0xDEADFA11DECAFBADULL, "deadfa11decafbad"sv, "DEADFA11DECAFBAD"sv},
+                                            {0xDEAD10CCDEFEC8EDULL, "dead10ccdefec8ed"sv, "DEAD10CCDEFEC8ED"sv},
+                                            {0xDEADFEEDD0D0CACAULL, "deadfeedd0d0caca"sv, "DEADFEEDD0D0CACA"sv},
+                                            {0xDECAFBADE011CFD0ULL, "decafbade011cfd0"sv, "DECAFBADE011CFD0"sv},
+                                            {0xDEFEC8EDF0CACC1AULL, "defec8edf0cacc1a"sv, "DEFEC8EDF0CACC1A"sv},
+                                            {0xD0D0CACAFACEFEEDULL, "d0d0cacafacefeed"sv, "D0D0CACAFACEFEED"sv},
+                                            {0xE011CFD0FBADBEEFULL, "e011cfd0fbadbeef"sv, "E011CFD0FBADBEEF"sv},
+                                            {0xF0CACC1AFEE1DEADULL, "f0cacc1afee1dead"sv, "F0CACC1AFEE1DEAD"sv},
+                                            {0xFACEFEEDFEEDBABEULL, "facefeedfeedbabe"sv, "FACEFEEDFEEDBABE"sv},
+                                            {0xFBADBEEFFEEDC0DEULL, "fbadbeeffeedc0de"sv, "FBADBEEFFEEDC0DE"sv},
+                                            {0xFEE1DEADFFBADD11ULL, "fee1deadffbadd11"sv, "FEE1DEADFFBADD11"sv},
+                                            {0xFEEDBABEF00DBABEULL, "feedbabef00dbabe"sv, "FEEDBABEF00DBABE"sv},
+                                            {0xFFBADD1100BAB10CULL, "ffbadd1100bab10c"sv, "FFBADD1100BAB10C"sv},
+                                            {0xF00DBABE1BADB002ULL, "f00dbabe1badb002"sv, "F00DBABE1BADB002"sv}};
+
+#if defined(FAST_HEX_HAS_INT128)
+
+struct TestCase16
+{
+    __uint128_t input;
+    std::string_view expected_lower;
+    std::string_view expected_upper;
+};
+
+// clang-format off
+static constexpr TestCase16 test_cases16[] = {
+    {__uint128_t{0x0011223344556677ULL} << 64 | 0x8899AABBCCDDEEFFULL, "00112233445566778899aabbccddeeff"sv, "00112233445566778899AABBCCDDEEFF"sv},
+    {__uint128_t{0xFFFFFFFFFFFFFFFFULL} << 64 | 0xFFFFFFFFFFFFFFFFULL, "ffffffffffffffffffffffffffffffff"sv, "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"sv},
+    {__uint128_t{0x123456789ABCDEF0ULL} << 64 | 0x0FEDCBA987654321ULL, "123456789abcdef00fedcba987654321"sv, "123456789ABCDEF00FEDCBA987654321"sv},
+    {__uint128_t{0xDEADBEEFDEADC0DEULL} << 64 | 0xFEEDFACECAFEBABEULL, "deadbeefdeadc0defeedfacecafebabe"sv, "DEADBEEFDEADC0DEFEEDFACECAFEBABE"sv},
+    {__uint128_t{0x0B00B13500BAD00BULL} << 64 | 0xBAADF00DFEEDBABEULL, "0b00b13500bad00bbaadf00dfeedbabe"sv, "0B00B13500BAD00BBAADF00DFEEDBABE"sv},
+    {__uint128_t{0x0102030405060708ULL} << 64 | 0x090A0B0C0D0E0F10ULL, "0102030405060708090a0b0c0d0e0f10"sv, "0102030405060708090A0B0C0D0E0F10"sv},
+    {__uint128_t{0xFFFFFFFF00000000ULL} << 64 | 0x00000000FFFFFFFFULL, "ffffffff0000000000000000ffffffff"sv, "FFFFFFFF0000000000000000FFFFFFFF"sv},
+    {__uint128_t{0x0000000000000001ULL} << 64 | 0x1000000000000000ULL, "00000000000000011000000000000000"sv, "00000000000000011000000000000000"sv},
+};
+// clang-format on
+
+#endif // defined(FAST_HEX_HAS_INT128)
+
+struct TestCase2x8
+{
+    uint64_t input1;
+    uint64_t input2;
+    std::string_view expected_lower;
+    std::string_view expected_upper;
+};
+
+// clang-format off
+static constexpr TestCase2x8 test_cases2x8[] = {
+    {0x0011223344556677ULL, 0x8899AABBCCDDEEFFULL, "00112233445566778899aabbccddeeff"sv, "00112233445566778899AABBCCDDEEFF"sv},
+    {0xFFFFFFFFFFFFFFFFULL, 0xFFFFFFFFFFFFFFFFULL, "ffffffffffffffffffffffffffffffff"sv, "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"sv},
+    {0x123456789ABCDEF0ULL, 0x0FEDCBA987654321ULL, "123456789abcdef00fedcba987654321"sv, "123456789ABCDEF00FEDCBA987654321"sv},
+    {0xDEADBEEFDEADC0DEULL, 0xFEEDFACECAFEBABEULL, "deadbeefdeadc0defeedfacecafebabe"sv, "DEADBEEFDEADC0DEFEEDFACECAFEBABE"sv},
+    {0x0B00B13500BAD00BULL, 0xBAADF00DFEEDBABEULL, "0b00b13500bad00bbaadf00dfeedbabe"sv, "0B00B13500BAD00BBAADF00DFEEDBABE"sv},
+    {0x0102030405060708ULL, 0x090A0B0C0D0E0F10ULL, "0102030405060708090a0b0c0d0e0f10"sv, "0102030405060708090A0B0C0D0E0F10"sv},
+    {0xFFFFFFFF00000000ULL, 0x00000000FFFFFFFFULL, "ffffffff0000000000000000ffffffff"sv, "FFFFFFFF0000000000000000FFFFFFFF"sv},
+    {0x0000000000000001ULL, 0x1000000000000000ULL, "00000000000000011000000000000000"sv, "00000000000000011000000000000000"sv},
+};
+// clang-format on
+
+
+TEST_SUITE("encode_integral")
+{
+    TEST_CASE("encode_integral 8 naive")
+    {
+        constexpr auto OutLength = 16;
+        for (size_t i = 0; i < std::size(test_cases8); i++)
+        {
+            const auto & tc = test_cases8[i];
+            uint8_t dest_lower[OutLength] = {};
+            uint8_t dest_upper[OutLength] = {};
+            encode_integral_naive(dest_lower, tc.input, lower);
+            encode_integral_naive(dest_upper, tc.input, upper);
+
+            std::string_view result_lower(reinterpret_cast<char *>(dest_lower), OutLength);
+            std::string_view result_upper(reinterpret_cast<char *>(dest_upper), OutLength);
+
+            CAPTURE(i);
+            REQUIRE(result_lower == tc.expected_lower);
+            REQUIRE(result_upper == tc.expected_upper);
+        }
+    }
+#if defined(FAST_HEX_HAS_INT128)
+    TEST_CASE("encode_integral 16 naive")
+    {
+        constexpr auto OutLength = 32;
+        for (size_t i = 0; i < std::size(test_cases16); i++)
+        {
+            const auto & tc = test_cases16[i];
+            uint8_t dest_lower[OutLength] = {};
+            uint8_t dest_upper[OutLength] = {};
+            encode_integral_naive(dest_lower, tc.input, lower);
+            encode_integral_naive(dest_upper, tc.input, upper);
+
+            std::string_view result_lower(reinterpret_cast<char *>(dest_lower), OutLength);
+            std::string_view result_upper(reinterpret_cast<char *>(dest_upper), OutLength);
+
+            CAPTURE(i);
+            REQUIRE(result_lower == tc.expected_lower);
+            REQUIRE(result_upper == tc.expected_upper);
+        }
+    }
+#endif
+#if defined(__AVX__) || defined(FAST_HEX_NEON)
+    TEST_CASE("encode_integral 8")
+    {
+        constexpr auto OutLength = 16;
+        for (size_t i = 0; i < std::size(test_cases8); i++)
+        {
+            const auto & tc = test_cases8[i];
+            uint8_t dest_lower[OutLength] = {};
+            uint8_t dest_upper[OutLength] = {};
+            encode_integral8(dest_lower, tc.input, lower);
+            encode_integral8(dest_upper, tc.input, upper);
+
+            std::string_view result_lower(reinterpret_cast<char *>(dest_lower), OutLength);
+            std::string_view result_upper(reinterpret_cast<char *>(dest_upper), OutLength);
+
+            CAPTURE(i);
+            REQUIRE(result_lower == tc.expected_lower);
+            REQUIRE(result_upper == tc.expected_upper);
+        }
+    }
+#endif // defined(__AVX__)
+#if defined(__AVX2__)
+    TEST_CASE("encode_integral 16")
+    {
+        constexpr auto OutLength = 32;
+        for (size_t i = 0; i < std::size(test_cases16); i++)
+        {
+            const auto & tc = test_cases16[i];
+            uint8_t dest_lower[OutLength] = {};
+            uint8_t dest_upper[OutLength] = {};
+            encode_integral16(dest_lower, tc.input, lower);
+            encode_integral16(dest_upper, tc.input, upper);
+
+            std::string_view result_lower(reinterpret_cast<char *>(dest_lower), OutLength);
+            std::string_view result_upper(reinterpret_cast<char *>(dest_upper), OutLength);
+
+            CAPTURE(i);
+            REQUIRE(result_lower == tc.expected_lower);
+            REQUIRE(result_upper == tc.expected_upper);
+        }
+    }
+    TEST_CASE("encode_integral 2x8")
+    {
+        constexpr auto OutLength = 32;
+        for (size_t i = 0; i < std::size(test_cases2x8); i++)
+        {
+            const auto & tc = test_cases2x8[i];
+            uint8_t dest_lower[OutLength] = {};
+            uint8_t dest_upper[OutLength] = {};
+            encode_integral2x8(dest_lower, &tc.input1, lower);
+            encode_integral2x8(dest_upper, &tc.input1, upper);
+
+            std::string_view result_lower(reinterpret_cast<char *>(dest_lower), OutLength);
+            std::string_view result_upper(reinterpret_cast<char *>(dest_upper), OutLength);
+
+            CAPTURE(i);
+            REQUIRE(result_lower == tc.expected_lower);
+            REQUIRE(result_upper == tc.expected_upper);
+        }
+    }
+#endif // defined(__AVX2__)
+}

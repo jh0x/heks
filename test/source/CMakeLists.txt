@@ -28,18 +28,19 @@ add_executable(
     test_invalid_inputs.cpp
 )
 target_link_libraries(fast_hex_test PRIVATE fast_hex::fast_hex doctest)
-target_compile_features(fast_hex_test PRIVATE cxx_std_17)
+target_compile_features(fast_hex_test PRIVATE cxx_std_20)
 target_compile_definitions(fast_hex_test PRIVATE FAST_HEX_STATIC_SHARED_LIBRARY)
 
 add_executable(
     fast_hex_test_inline
     main.cpp
     test_encode_fast.cpp
+    test_encode_integral.cpp
     test_valid_inputs.cpp
     test_invalid_inputs.cpp
 )
 target_link_libraries(fast_hex_test_inline PRIVATE fast_hex::fast_hex doctest)
-target_compile_features(fast_hex_test_inline PRIVATE cxx_std_17)
+target_compile_features(fast_hex_test_inline PRIVATE cxx_std_20)
 
 # ---- AVX Support ----
 include(../../cmake/avx_support.cmake)

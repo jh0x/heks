@@ -88,7 +88,7 @@ if(fast_hex_BUILD_LIBS)
         PUBLIC "\$<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/export>"
     )
 
-    target_compile_features(fast_hex_fast_hex PUBLIC cxx_std_17)
+    target_compile_features(fast_hex_fast_hex PUBLIC cxx_std_20)
 
     fast_hex_target_enable_avx(fast_hex_fast_hex)
 endif()

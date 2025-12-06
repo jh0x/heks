@@ -1,8 +1,11 @@
 #pragma once
 
+#include <bit>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <string_view>
+#include <type_traits>
 
 #if defined(__AVX2__)
 #    if defined(__GNUC__)
@@ -46,6 +49,15 @@
 #    define FAST_HEX_FUNCTION_INLINE inline
 #endif
 
+#if defined(_MSC_VER)
+#    define FAST_HEX_BSWAP64(x) _byteswap_uint64(x)
+#else
+#    define FAST_HEX_BSWAP64(x) __builtin_bswap64(x)
+#endif
+
+#if (defined(__SIZEOF_INT128__) || defined(__INT128__))
+#    define FAST_HEX_HAS_INT128 1
+#endif
 
 // This implementation is by https://github.com/zbjornson/fast-hex
 // Only introduced some minor modernisations and style changes to those functions
@@ -98,10 +110,42 @@ enum class HexCase
     Upper
 };
 
+enum class Reverse
+{
+    No,
+    Yes64,
+    Yes128,
+};
+
+// clang-format off
+template <typename T>
+struct is_integral_128 : std::false_type {};
+
+#if defined(__SIZEOF_INT128__)
+template <>
+struct is_integral_128<__int128> : std::true_type {};
+
+template <>
+struct is_integral_128<unsigned __int128> : std::true_type {};
+#endif
+
+#if defined(_MSC_VER) && defined(_M_X64)
+template <>
+struct is_integral_128<__int128> : std::true_type {};
+
+template <>
+struct is_integral_128<unsigned __int128> : std::true_type {};
+#endif
+
+// clang-format on
+
+template <typename T>
+inline constexpr bool is_integral_128_v = is_integral_128<T>::value;
+
 
 // clang-format off
 // ASCII -> hex value as a string_view
-constexpr std::string_view unhex_table_sv =
+constexpr inline std::string_view unhex_table_sv =
     "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF" // 0x00-0x07
     "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF" // 0x08-0x0F
     "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF" // 0x10-0x17
@@ -137,7 +181,7 @@ constexpr std::string_view unhex_table_sv =
     ;
 
 // ASCII -> hex value << 4 (upper nibble) as a string_view
-constexpr std::string_view unhex_table4_sv =
+constexpr inline std::string_view unhex_table4_sv =
     "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF" // 0x00-0x07
     "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF" // 0x08-0x0F
     "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF" // 0x10-0x17
@@ -171,6 +215,43 @@ constexpr std::string_view unhex_table4_sv =
     "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF" // 0xF0-0xF8
     "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"sv // 0xF8-0xFF
     ;
+
+constexpr inline std::string_view hex_to_char_upper_sv =
+    "000102030405060708090A0B0C0D0E0F"
+    "101112131415161718191A1B1C1D1E1F"
+    "202122232425262728292A2B2C2D2E2F"
+    "303132333435363738393A3B3C3D3E3F"
+    "404142434445464748494A4B4C4D4E4F"
+    "505152535455565758595A5B5C5D5E5F"
+    "606162636465666768696A6B6C6D6E6F"
+    "707172737475767778797A7B7C7D7E7F"
+    "808182838485868788898A8B8C8D8E8F"
+    "909192939495969798999A9B9C9D9E9F"
+    "A0A1A2A3A4A5A6A7A8A9AAABACADAEAF"
+    "B0B1B2B3B4B5B6B7B8B9BABBBCBDBEBF"
+    "C0C1C2C3C4C5C6C7C8C9CACBCCCDCECF"
+    "D0D1D2D3D4D5D6D7D8D9DADBDCDDDEDF"
+    "E0E1E2E3E4E5E6E7E8E9EAEBECEDEEEF"
+    "F0F1F2F3F4F5F6F7F8F9FAFBFCFDFEFF"sv;
+
+constexpr inline std::string_view hex_to_char_lower_sv =
+    "000102030405060708090a0b0c0d0e0f"
+    "101112131415161718191a1b1c1d1e1f"
+    "202122232425262728292a2b2c2d2e2f"
+    "303132333435363738393a3b3c3d3e3f"
+    "404142434445464748494a4b4c4d4e4f"
+    "505152535455565758595a5b5c5d5e5f"
+    "606162636465666768696a6b6c6d6e6f"
+    "707172737475767778797a7b7c7d7e7f"
+    "808182838485868788898a8b8c8d8e8f"
+    "909192939495969798999a9b9c9d9e9f"
+    "a0a1a2a3a4a5a6a7a8a9aaabacadaeaf"
+    "b0b1b2b3b4b5b6b7b8b9babbbcbdbebf"
+    "c0c1c2c3c4c5c6c7c8c9cacbcccdcecf"
+    "d0d1d2d3d4d5d6d7d8d9dadbdcdddedf"
+    "e0e1e2e3e4e5e6e7e8e9eaebecedeeef"
+    "f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff";
+
 // clang-format on
 
 static_assert(unhex_table_sv.size() == 256, "unhex_table_sv must have 256 elements");
@@ -277,8 +358,8 @@ inline __m256i byte2nib(__m128i val)
 
 // clang-format off
 // Hex character lookup as a string_view
-constexpr std::string_view hex_table_lower_sv = "0123456789abcdef"sv;
-constexpr std::string_view hex_table_upper_sv = "0123456789ABCDEF"sv;
+constexpr inline std::string_view hex_table_lower_sv = "0123456789abcdef"sv;
+constexpr inline std::string_view hex_table_upper_sv = "0123456789ABCDEF"sv;
 // clang-format on
 
 static_assert(hex_table_lower_sv.size() == 16, "hex_table_lower_sv must have 16 elements");
@@ -353,10 +434,20 @@ inline void encodeHexVecImpl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * F
     encodeHexImpl<H>(dest + (vectLen << 5), src + (vectLen << 4), RawLength{tailLen});
 }
 
-template <HexCase H>
+template <HexCase H, Reverse R = Reverse::No>
 inline void encodeHex16Fast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
 {
     __m128i v16 = _mm_lddqu_si128(reinterpret_cast<const __m128i *>(src));
+    if constexpr (R == Reverse::Yes128)
+    {
+        const __m128i REV_FULL = _mm_setr_epi8(15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0);
+        v16 = _mm_shuffle_epi8(v16, REV_FULL);
+    }
+    else if constexpr (R == Reverse::Yes64)
+    {
+        const __m128i REV_HALVES = _mm_setr_epi8(7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12, 11, 10, 9, 8);
+        v16 = _mm_shuffle_epi8(v16, REV_HALVES);
+    }
     __m256i nibs = byte2nib(v16);
     __m256i hexed = hex<H>(nibs);
     // Store all 32 bytes (16 input → 32 hex chars)
@@ -425,9 +516,10 @@ void encodeHexNeon_impl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_H
     encodeHexImpl<H>(dest + (i * 2), src + i, RawLength{len});
 }
 
-template <HexCase H>
+template <HexCase H, Reverse R = Reverse::No>
 void encodeHexNeon8_impl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
 {
+    static_assert(R != Reverse::Yes128, "For 8-byte input, only Reverse::No and Reverse::Yes64 is supported.");
     static const uint8_t HEX_LUT_LOWER[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
     static const uint8_t HEX_LUT_UPPER[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
 
@@ -442,6 +534,10 @@ void encodeHexNeon8_impl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_
     tbl.val[1] = lut_vec2;
 
     uint8x8_t in = vld1_u8(src);
+    if constexpr (R == Reverse::Yes64)
+    {
+        in = vrev64_u8(in);
+    }
 
     uint8x8_t hi = vshr_n_u8(in, 4);
     uint8x8_t lo = vand_u8(in, vdup_n_u8(0x0F));
@@ -663,5 +759,79 @@ inline void decode_auto(uint8_t * FAST_HEX_RESTRICT d, const uint8_t * FAST_HEX_
 #endif
 }
 
+template <typename T, typename Case>
+void encode_integral_naive(uint8_t * FAST_HEX_RESTRICT output, T number, Case)
+{
+    using namespace heks_detail;
+    static_assert(std::is_integral_v<T> || is_integral_128_v<T>, "T must be an integral type");
+    constexpr auto case_type = Case::value;
+
+    const auto & hex_table = (case_type == HexCase::Lower) ? hex_to_char_lower_sv : hex_to_char_upper_sv;
+    union
+    {
+        T value;
+        uint8_t uint8[sizeof(T)];
+    };
+    value = number;
+
+    for (size_t i = 0; i < sizeof(T); ++i)
+    {
+        if constexpr (std::endian::native == std::endian::little)
+            std::memcpy(output + i * 2, &hex_table[static_cast<size_t>(uint8[sizeof(T) - 1 - i]) * 2], 2);
+        else
+            std::memcpy(output + i * 2, &hex_table[static_cast<size_t>(uint8[i]) * 2], 2);
+    }
+}
+
+#if defined(__AVX__)
+template <typename T, typename Case>
+void encode_integral8(uint8_t * FAST_HEX_RESTRICT output, T number, Case)
+{
+    using namespace heks_detail;
+    static_assert(std::is_integral_v<T>, "T must be an integral type");
+    static_assert(sizeof(T) == 8, "T must be 8 bytes (64 bits) in size");
+    constexpr auto case_type = Case::value;
+    number = FAST_HEX_BSWAP64(number);
+    const auto * input = reinterpret_cast<const uint8_t *>(&number);
+    encodeHex8Fast<case_type>(output, input);
+}
+#elif defined(FAST_HEX_NEON)
+template <typename T, typename Case>
+void encode_integral8(uint8_t * FAST_HEX_RESTRICT output, T number, Case)
+{
+    using namespace heks_detail;
+    static_assert(std::is_integral_v<T>, "T must be an integral type");
+    static_assert(sizeof(T) == 8, "T must be 8 bytes (64 bits) in size");
+    constexpr auto case_type = Case::value;
+    const auto * input = reinterpret_cast<const uint8_t *>(&number);
+    if constexpr (std::endian::native == std::endian::little)
+        encodeHexNeon8_impl<case_type, Reverse::Yes64>(output, input);
+    else
+        encodeHexNeon8_impl<case_type, Reverse::No>(output, input);
+}
+#endif
+
+#if defined(__AVX2__)
+template <typename T, typename Case>
+void encode_integral16(uint8_t * FAST_HEX_RESTRICT output, T number, Case)
+{
+    using namespace heks_detail;
+    static_assert(is_integral_128_v<T>, "T must be an integral type");
+    static_assert(sizeof(T) == 16, "T must be 16 bytes (128 bits) in size");
+    constexpr auto case_type = Case::value;
+    const auto * input = reinterpret_cast<const uint8_t *>(&number);
+    encodeHex16Fast<case_type, Reverse::Yes128>(output, input);
+}
+template <typename T, typename Case>
+void encode_integral2x8(uint8_t * FAST_HEX_RESTRICT output, const T * FAST_HEX_RESTRICT first, Case)
+{
+    using namespace heks_detail;
+    static_assert(std::is_integral_v<T>, "T must be an integral type");
+    static_assert(sizeof(T) == 8, "T must be 8 bytes (64 bits) in size");
+    constexpr auto case_type = Case::value;
+    const auto * input = reinterpret_cast<const uint8_t *>(first);
+    encodeHex16Fast<case_type, Reverse::Yes64>(output, input);
+}
+#endif
 
 FAST_HEX_NAMESPACE_CLOSE
