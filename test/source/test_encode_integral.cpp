@@ -255,10 +255,16 @@ TEST_SUITE("decode_integral")
     {
         run_decode_integral_test(decode_integral_naive<uint64_t>, test_cases8);
     }
+#if defined(__AVX__)
+    TEST_CASE("decode_integral 8 naive")
+    {
+        run_decode_integral_test(decode_integral8, test_cases8);
+    }
+#endif // defined(__AVX__)
 #if defined(FAST_HEX_HAS_INT128)
     TEST_CASE("decode_integral 16 naive")
     {
         run_decode_integral_test(decode_integral_naive<__uint128_t>, test_cases16);
     }
-#endif
+#endif // defined(FAST_HEX_HAS_INT128)
 }

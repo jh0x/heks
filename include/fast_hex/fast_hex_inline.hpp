@@ -780,6 +780,37 @@ T decode_integral_naive(const uint8_t * src)
     }
 }
 
+#if defined(__AVX__)
+// Based on https://github.com/lemire/Code-used-on-Daniel-Lemire-s-blog/blob/master/2023/07/27/src/base16.c
+inline uint64_t decode_integral8(const uint8_t * src)
+{
+    // Rebase constants for hex digits
+    // clang-format off
+    const __m128i delta_rebase = _mm_setr_epi8(
+        0, 0, -47, -47, -54, 0, -86, 0,
+        0, 0, 0, 0, 0, 0, 0, 0
+    );
+    // clang-format on
+
+    // Load 16 hex characters
+    __m128i v = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src));
+    // Convert ASCII to 0-15 values
+    __m128i vm1 = _mm_add_epi8(v, _mm_set1_epi8(-1));
+    __m128i hash_key = _mm_and_si128(_mm_srli_epi32(vm1, 4), _mm_set1_epi8(0x0F));
+    v = _mm_add_epi8(vm1, _mm_shuffle_epi8(delta_rebase, hash_key));
+
+    // v now has 16 bytes, each with hex digit (0-15) in lower nibble
+    const __m128i t3 = _mm_maddubs_epi16(v, _mm_set1_epi16(0x0110));
+    __m128i packed = _mm_packus_epi16(t3, t3);
+
+    const __m128i reverse_mask = _mm_setr_epi8(7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12, 11, 10, 9, 8);
+    packed = _mm_shuffle_epi8(packed, reverse_mask);
+    uint64_t result;
+    _mm_storel_epi64(reinterpret_cast<__m128i *>(&result), packed);
+    return result;
+}
+#endif
+
 template <typename T, typename Case>
 void encode_integral_naive(uint8_t * FAST_HEX_RESTRICT output, T number, Case)
 {
