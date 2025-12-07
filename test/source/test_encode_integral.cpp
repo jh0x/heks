@@ -111,88 +111,51 @@ static constexpr TestCase2x8 test_cases2x8[] = {
 // clang-format on
 
 
+template <typename Fun, typename TC>
+void run_encode_integral_test(Fun encode_func, size_t outlength, const TC & test_cases)
+{
+    for (size_t i = 0; i < std::size(test_cases); i++)
+    {
+        const auto & tc = test_cases[i];
+        std::vector<uint8_t> dest_lower_vec(outlength);
+        auto * dest_lower = dest_lower_vec.data();
+        std::vector<uint8_t> dest_upper_vec(outlength);
+        auto * dest_upper = dest_upper_vec.data();
+
+        encode_func(dest_lower, tc.input, lower);
+        encode_func(dest_upper, tc.input, upper);
+
+        std::string_view result_lower(reinterpret_cast<char *>(dest_lower), outlength);
+        std::string_view result_upper(reinterpret_cast<char *>(dest_upper), outlength);
+
+        CAPTURE(i);
+        REQUIRE(result_lower == tc.expected_lower);
+        REQUIRE(result_upper == tc.expected_upper);
+    }
+}
+
 TEST_SUITE("encode_integral")
 {
     TEST_CASE("encode_integral 8 naive")
     {
-        constexpr auto OutLength = 16;
-        for (size_t i = 0; i < std::size(test_cases8); i++)
-        {
-            const auto & tc = test_cases8[i];
-            uint8_t dest_lower[OutLength] = {};
-            uint8_t dest_upper[OutLength] = {};
-            encode_integral_naive(dest_lower, tc.input, lower);
-            encode_integral_naive(dest_upper, tc.input, upper);
-
-            std::string_view result_lower(reinterpret_cast<char *>(dest_lower), OutLength);
-            std::string_view result_upper(reinterpret_cast<char *>(dest_upper), OutLength);
-
-            CAPTURE(i);
-            REQUIRE(result_lower == tc.expected_lower);
-            REQUIRE(result_upper == tc.expected_upper);
-        }
+        run_encode_integral_test([](auto dst, auto input, auto c) { encode_integral_naive(dst, input, c); }, 16, test_cases8);
     }
 #if defined(FAST_HEX_HAS_INT128)
     TEST_CASE("encode_integral 16 naive")
     {
-        constexpr auto OutLength = 32;
-        for (size_t i = 0; i < std::size(test_cases16); i++)
-        {
-            const auto & tc = test_cases16[i];
-            uint8_t dest_lower[OutLength] = {};
-            uint8_t dest_upper[OutLength] = {};
-            encode_integral_naive(dest_lower, tc.input, lower);
-            encode_integral_naive(dest_upper, tc.input, upper);
-
-            std::string_view result_lower(reinterpret_cast<char *>(dest_lower), OutLength);
-            std::string_view result_upper(reinterpret_cast<char *>(dest_upper), OutLength);
-
-            CAPTURE(i);
-            REQUIRE(result_lower == tc.expected_lower);
-            REQUIRE(result_upper == tc.expected_upper);
-        }
+        run_encode_integral_test([](auto dst, auto input, auto c) { encode_integral_naive(dst, input, c); }, 32, test_cases16);
     }
 #endif
 #if defined(__AVX__) || defined(FAST_HEX_NEON)
     TEST_CASE("encode_integral 8")
     {
-        constexpr auto OutLength = 16;
-        for (size_t i = 0; i < std::size(test_cases8); i++)
-        {
-            const auto & tc = test_cases8[i];
-            uint8_t dest_lower[OutLength] = {};
-            uint8_t dest_upper[OutLength] = {};
-            encode_integral8(dest_lower, tc.input, lower);
-            encode_integral8(dest_upper, tc.input, upper);
-
-            std::string_view result_lower(reinterpret_cast<char *>(dest_lower), OutLength);
-            std::string_view result_upper(reinterpret_cast<char *>(dest_upper), OutLength);
-
-            CAPTURE(i);
-            REQUIRE(result_lower == tc.expected_lower);
-            REQUIRE(result_upper == tc.expected_upper);
-        }
+        run_encode_integral_test([](auto dst, auto input, auto c) { encode_integral8(dst, input, c); }, 16, test_cases8);
     }
 #endif // defined(__AVX__)
 #if defined(__AVX2__)
     TEST_CASE("encode_integral 16")
     {
-        constexpr auto OutLength = 32;
-        for (size_t i = 0; i < std::size(test_cases16); i++)
-        {
-            const auto & tc = test_cases16[i];
-            uint8_t dest_lower[OutLength] = {};
-            uint8_t dest_upper[OutLength] = {};
-            encode_integral16(dest_lower, tc.input, lower);
-            encode_integral16(dest_upper, tc.input, upper);
-
-            std::string_view result_lower(reinterpret_cast<char *>(dest_lower), OutLength);
-            std::string_view result_upper(reinterpret_cast<char *>(dest_upper), OutLength);
-
-            CAPTURE(i);
-            REQUIRE(result_lower == tc.expected_lower);
-            REQUIRE(result_upper == tc.expected_upper);
-        }
+        run_encode_integral_test([](auto dst, auto input, auto c) { encode_integral16(dst, input, c); }, 32, test_cases16);
     }
     TEST_CASE("encode_integral 2x8")
     {
