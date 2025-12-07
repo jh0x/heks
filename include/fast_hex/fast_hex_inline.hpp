@@ -5,7 +5,6 @@
 #include <cstdint>
 #include <cstring>
 #include <string_view>
-#include <type_traits>
 
 #if defined(__AVX2__)
 #    if defined(__GNUC__)
@@ -116,31 +115,6 @@ enum class Reverse
     Yes64,
     Yes128,
 };
-
-// clang-format off
-template <typename T>
-struct is_integral_128 : std::false_type {};
-
-#if defined(__SIZEOF_INT128__)
-template <>
-struct is_integral_128<__int128> : std::true_type {};
-
-template <>
-struct is_integral_128<unsigned __int128> : std::true_type {};
-#endif
-
-#if defined(_MSC_VER) && defined(_M_X64)
-template <>
-struct is_integral_128<__int128> : std::true_type {};
-
-template <>
-struct is_integral_128<unsigned __int128> : std::true_type {};
-#endif
-
-// clang-format on
-
-template <typename T>
-inline constexpr bool is_integral_128_v = is_integral_128<T>::value;
 
 
 // clang-format off
@@ -763,7 +737,6 @@ template <typename T, typename Case>
 void encode_integral_naive(uint8_t * FAST_HEX_RESTRICT output, T number, Case)
 {
     using namespace heks_detail;
-    static_assert(std::is_integral_v<T> || is_integral_128_v<T>, "T must be an integral type");
     constexpr auto case_type = Case::value;
 
     const auto & hex_table = (case_type == HexCase::Lower) ? hex_to_char_lower_sv : hex_to_char_upper_sv;
@@ -788,7 +761,6 @@ template <typename T, typename Case>
 void encode_integral8(uint8_t * FAST_HEX_RESTRICT output, T number, Case)
 {
     using namespace heks_detail;
-    static_assert(std::is_integral_v<T>, "T must be an integral type");
     static_assert(sizeof(T) == 8, "T must be 8 bytes (64 bits) in size");
     constexpr auto case_type = Case::value;
     number = FAST_HEX_BSWAP64(number);
@@ -800,7 +772,6 @@ template <typename T, typename Case>
 void encode_integral8(uint8_t * FAST_HEX_RESTRICT output, T number, Case)
 {
     using namespace heks_detail;
-    static_assert(std::is_integral_v<T>, "T must be an integral type");
     static_assert(sizeof(T) == 8, "T must be 8 bytes (64 bits) in size");
     constexpr auto case_type = Case::value;
     const auto * input = reinterpret_cast<const uint8_t *>(&number);
@@ -816,7 +787,6 @@ template <typename T, typename Case>
 void encode_integral16(uint8_t * FAST_HEX_RESTRICT output, T number, Case)
 {
     using namespace heks_detail;
-    static_assert(is_integral_128_v<T>, "T must be an integral type");
     static_assert(sizeof(T) == 16, "T must be 16 bytes (128 bits) in size");
     constexpr auto case_type = Case::value;
     const auto * input = reinterpret_cast<const uint8_t *>(&number);
@@ -826,7 +796,6 @@ template <typename T, typename Case>
 void encode_integral2x8(uint8_t * FAST_HEX_RESTRICT output, const T * FAST_HEX_RESTRICT first, Case)
 {
     using namespace heks_detail;
-    static_assert(std::is_integral_v<T>, "T must be an integral type");
     static_assert(sizeof(T) == 8, "T must be 8 bytes (64 bits) in size");
     constexpr auto case_type = Case::value;
     const auto * input = reinterpret_cast<const uint8_t *>(first);
