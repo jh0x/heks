@@ -134,6 +134,23 @@ void run_encode_integral_test(Fun encode_func, size_t outlength, const TC & test
     }
 }
 
+template <typename Fun, typename TC>
+void run_decode_integral_test(Fun decode_func, const TC & test_cases)
+{
+    for (size_t i = 0; i < std::size(test_cases); i++)
+    {
+        const auto & tc = test_cases[i];
+        auto input_data = reinterpret_cast<const uint8_t *>(tc.expected_lower.data());
+
+        using T = decltype(tc.input);
+        T output_value = decode_func(input_data);
+
+        CAPTURE(i);
+        CAPTURE(tc.expected_lower);
+        REQUIRE(output_value == tc.input);
+    }
+}
+
 TEST_SUITE("encode_integral")
 {
     TEST_CASE("encode_integral 8 naive")
@@ -177,4 +194,71 @@ TEST_SUITE("encode_integral")
         }
     }
 #endif // defined(__AVX2__)
+}
+
+template <typename T>
+struct TestCase
+{
+    T input;
+    std::string_view expected_lower;
+    std::string_view expected_upper;
+};
+
+static constexpr TestCase<uint8_t> test_cases1[] = {
+    {0x00, "00"sv, "00"sv},
+    {0x7F, "7f"sv, "7F"sv},
+    {0x80, "80"sv, "80"sv},
+    {0xFF, "ff"sv, "FF"sv},
+};
+
+static constexpr TestCase<uint16_t> test_cases2[] = {
+    {0x0000, "0000"sv, "0000"sv},
+    {0x0001, "0001"sv, "0001"sv},
+    {0x0010, "0010"sv, "0010"sv},
+    {0x0100, "0100"sv, "0100"sv},
+    {0x1000, "1000"sv, "1000"sv},
+    {0x1234, "1234"sv, "1234"sv},
+    {0x7FFF, "7fff"sv, "7FFF"sv},
+    {0x8000, "8000"sv, "8000"sv},
+    {0xFFFF, "ffff"sv, "FFFF"sv},
+};
+
+static constexpr TestCase<uint32_t> test_cases4[] = {
+    {0x00000000, "00000000"sv, "00000000"sv},
+    {0x00000001, "00000001"sv, "00000001"sv},
+    {0x00000010, "00000010"sv, "00000010"sv},
+    {0x00000100, "00000100"sv, "00000100"sv},
+    {0x00001000, "00001000"sv, "00001000"sv},
+    {0x00010000, "00010000"sv, "00010000"sv},
+    {0x00123456, "00123456"sv, "00123456"sv},
+    {0x12345678, "12345678"sv, "12345678"sv},
+    {0x7FFFFFFF, "7fffffff"sv, "7FFFFFFF"sv},
+    {0x80000000, "80000000"sv, "80000000"sv},
+    {0xFFFFFFFF, "ffffffff"sv, "FFFFFFFF"sv},
+};
+
+TEST_SUITE("decode_integral")
+{
+    TEST_CASE("decode_integral 1 naive")
+    {
+        run_decode_integral_test(decode_integral_naive<uint8_t>, test_cases1);
+    }
+    TEST_CASE("decode_integral 2 naive")
+    {
+        run_decode_integral_test(decode_integral_naive<uint16_t>, test_cases2);
+    }
+    TEST_CASE("decode_integral 4 naive")
+    {
+        run_decode_integral_test(decode_integral_naive<uint32_t>, test_cases4);
+    }
+    TEST_CASE("decode_integral 8 naive")
+    {
+        run_decode_integral_test(decode_integral_naive<uint64_t>, test_cases8);
+    }
+#if defined(FAST_HEX_HAS_INT128)
+    TEST_CASE("decode_integral 16 naive")
+    {
+        run_decode_integral_test(decode_integral_naive<__uint128_t>, test_cases16);
+    }
+#endif
 }

@@ -733,6 +733,53 @@ inline void decode_auto(uint8_t * FAST_HEX_RESTRICT d, const uint8_t * FAST_HEX_
 #endif
 }
 
+template <typename T>
+T decode_integral_naive(const uint8_t * src)
+{
+    using namespace heks_detail;
+
+    if constexpr (sizeof(T) == 1)
+    {
+        return unhexA(src[0]) | unhexB(src[1]);
+    }
+    else if constexpr (sizeof(T) == 2)
+    {
+        uint8_t byte0 = unhexA(src[2 * 0]) | unhexB(src[2 * 0 + 1]);
+        uint8_t byte1 = unhexA(src[2 * 1]) | unhexB(src[2 * 1 + 1]);
+        return static_cast<T>((static_cast<uint16_t>(byte0) << 8) | byte1);
+    }
+    else if constexpr (sizeof(T) == 4)
+    {
+        uint8_t byte0 = unhexA(src[2 * 0]) | unhexB(src[2 * 0 + 1]);
+        uint8_t byte1 = unhexA(src[2 * 1]) | unhexB(src[2 * 1 + 1]);
+        uint8_t byte2 = unhexA(src[2 * 2]) | unhexB(src[2 * 2 + 1]);
+        uint8_t byte3 = unhexA(src[2 * 3]) | unhexB(src[2 * 3 + 1]);
+        return static_cast<T>(
+            (static_cast<uint32_t>(byte0) << 24) | (static_cast<uint32_t>(byte1) << 16) | (static_cast<uint32_t>(byte2) << 8) | byte3);
+    }
+    else if constexpr (sizeof(T) == 8)
+    {
+        uint8_t byte0 = unhexA(src[2 * 0]) | unhexB(src[2 * 0 + 1]);
+        uint8_t byte1 = unhexA(src[2 * 1]) | unhexB(src[2 * 1 + 1]);
+        uint8_t byte2 = unhexA(src[2 * 2]) | unhexB(src[2 * 2 + 1]);
+        uint8_t byte3 = unhexA(src[2 * 3]) | unhexB(src[2 * 3 + 1]);
+        uint8_t byte4 = unhexA(src[2 * 4]) | unhexB(src[2 * 4 + 1]);
+        uint8_t byte5 = unhexA(src[2 * 5]) | unhexB(src[2 * 5 + 1]);
+        uint8_t byte6 = unhexA(src[2 * 6]) | unhexB(src[2 * 6 + 1]);
+        uint8_t byte7 = unhexA(src[2 * 7]) | unhexB(src[2 * 7 + 1]);
+        return static_cast<T>(
+            (static_cast<uint64_t>(byte0) << 56) | (static_cast<uint64_t>(byte1) << 48) | (static_cast<uint64_t>(byte2) << 40)
+            | (static_cast<uint64_t>(byte3) << 32) | (static_cast<uint64_t>(byte4) << 24) | (static_cast<uint64_t>(byte5) << 16)
+            | (static_cast<uint64_t>(byte6) << 8) | static_cast<uint64_t>(byte7));
+    }
+    else if constexpr (sizeof(T) == 16)
+    {
+        uint64_t high_part = decode_integral_naive<uint64_t>(src);
+        uint64_t low_part = decode_integral_naive<uint64_t>(src + 16);
+        return static_cast<T>(static_cast<T>(high_part) << 64 | low_part);
+    }
+}
+
 template <typename T, typename Case>
 void encode_integral_naive(uint8_t * FAST_HEX_RESTRICT output, T number, Case)
 {

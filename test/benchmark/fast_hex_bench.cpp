@@ -128,6 +128,8 @@ std::vector<T> createInputData(size_t count, T)
     } \
     BENCHMARK(BM_##func_name##_##size_name);
 
+// clang-format off
+
 // ---- Encoding Benchmarks ----
 
 DEFINE_ENCODE_BENCHMARK(encodeHexLower, 8, 8B)
@@ -215,15 +217,17 @@ DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral8, uint64_t, 1024 * 1024, 104857
 
 #    if defined(__AVX2__)
 DEFINE_ENCODE_INTEGRAL_BENCHMARK2x8(encode_integral2x8, 1, 1_uint64x2)
-    DEFINE_ENCODE_INTEGRAL_BENCHMARK2x8(encode_integral2x8, 8, 8_uint64x2)
-        DEFINE_ENCODE_INTEGRAL_BENCHMARK2x8(encode_integral2x8, 1024, 1024_uint64x2)
-            DEFINE_ENCODE_INTEGRAL_BENCHMARK2x8(encode_integral2x8, 1024 * 1024, 1048576_uint64x2)
+DEFINE_ENCODE_INTEGRAL_BENCHMARK2x8(encode_integral2x8, 8, 8_uint64x2)
+DEFINE_ENCODE_INTEGRAL_BENCHMARK2x8(encode_integral2x8, 1024, 1024_uint64x2)
+DEFINE_ENCODE_INTEGRAL_BENCHMARK2x8(encode_integral2x8, 1024 * 1024, 1048576_uint64x2)
 
-                DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral16, __uint128_t, 1, 1_uint128)
-                    DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral16, __uint128_t, 8, 8_uint128)
-                        DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral16, __uint128_t, 1024, 1024_uint128)
-                            DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral16, __uint128_t, 1024 * 1024, 1048576_uint128)
+DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral16, __uint128_t, 1, 1_uint128)
+DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral16, __uint128_t, 8, 8_uint128)
+DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral16, __uint128_t, 1024, 1024_uint128)
+DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral16, __uint128_t, 1024 * 1024, 1048576_uint128)
 #    endif // defined(__AVX2__)
 #endif // FAST_HEX_STATIC_SHARED_LIBRARY
 
-                                BENCHMARK_MAIN();
+BENCHMARK_MAIN();
+
+// clang-format on
