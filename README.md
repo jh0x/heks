@@ -66,16 +66,6 @@ to `fast_hex_BUILD_SHARED_LIBS`). The following functions are provided:
 | `encodeHex16LowerFast` / `encodeHex16UpperFast`| AVX2-optimized version for inputs of length of exactly 16 bytes |
 | `encodeHex8LowerNeon` / `encodeHex8UpperNeon`| NEON-optimized version for inputs of length of exactly 8 bytes |
 
-#### Encoding of integral types (accounting for endianness)
-
-| Function | Description |
-|----------|-------------|
-| `encode_integral_naive` | Generic, portable implementation for encoding any integral type (8–128 bitintegers) into hex. Handles machine endianness explicitly using byte-by-byte extraction. Uses a lookup table for upper/lower hex. |
-| `encode_integral8` (AVX) | AVX-optimized encoder for 64-bit integers. Performs a 64-bit byte swap (to normalize endianness) and then routes the 8-byte block into `encodeHex8Fast` routine. |
-| `encode_integral8` (NEON) | NEON-optimized encoder for 64-bit integers. Uses NEON fast 8-byte encoding routine (`encodeHexNeon8_impl`) and reverses bytes at runtime if needed depending on host endianness. |
-| `encode_integral16` (AVX2) | AVX2-optimized encoder for 128-bit integral types. Converts a full 16-byte block using `encodeHex16Fast` routine with an appropriate shuffle mask. |
-| `encode_integral2x8` (AVX2) | AVX2-optimized function for encoding two consecutive 64-bit integers (2×8 bytes = 16 bytes) in one pass. Treats the pair as a contiguous 16-byte block and uses `encodeHex16Fast` routine with an appropriate shuffle mask. |
-
 You might want to pass specific flags for the target architecture (e.g. `-mavx2`). There is a convenience CMake option available
 for forcing the native architecture: `fast_hex_ENABLE_MARCH_NATIVE`.
 
@@ -98,6 +88,25 @@ heks::encode_auto(dst, src, heks::RawLength{len}, heks::upper);
 // Otherwise: decodeHexLUT4
 heks::decode_auto(dst, src, heks::RawLength{len});
 ```
+
+Also the following functions are provided as header only:
+
+#### Decoding of integral types (accounting for endianness)
+
+| Function | Description |
+|----------|-------------|
+|  `decode_integral_naive` | Naive implementation that decodes hex string to integral type T by processing 2 hex chars per byte. |
+| `decode_integral8`       | AVX-optimized version that decodes 16 hex characters at once into an 8-byte integer using SIMD operations. |
+
+#### Encoding of integral types (accounting for endianness)
+
+| Function | Description |
+|----------|-------------|
+| `encode_integral_naive` | Generic, portable implementation for encoding any integral type (8–128 bitintegers) into hex. Handles machine endianness explicitly using byte-by-byte extraction. Uses a lookup table for upper/lower hex. |
+| `encode_integral8` (AVX) | AVX-optimized encoder for 64-bit integers. Performs a 64-bit byte swap (to normalize endianness) and then routes the 8-byte block into `encodeHex8Fast` routine. |
+| `encode_integral8` (NEON) | NEON-optimized encoder for 64-bit integers. Uses NEON fast 8-byte encoding routine (`encodeHexNeon8_impl`) and reverses bytes at runtime if needed depending on host endianness. |
+| `encode_integral16` (AVX2) | AVX2-optimized encoder for 128-bit integral types. Converts a full 16-byte block using `encodeHex16Fast` routine with an appropriate shuffle mask. |
+| `encode_integral2x8` (AVX2) | AVX2-optimized function for encoding two consecutive 64-bit integers (2×8 bytes = 16 bytes) in one pass. Treats the pair as a contiguous 16-byte block and uses `encodeHex16Fast` routine with an appropriate shuffle mask. |
 
 ## How to develop?
 

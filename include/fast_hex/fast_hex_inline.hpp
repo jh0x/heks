@@ -367,13 +367,22 @@ inline void encodeHexImpl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST
 
 #if defined(__AVX__)
 
-template <HexCase H>
+template <HexCase H, Reverse R = Reverse::No>
 inline void encodeHex8Fast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
 {
     const __m128i HEX_LUT_LOWER = _mm_setr_epi8('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f');
     const __m128i HEX_LUT_UPPER = _mm_setr_epi8('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F');
 
     __m128i v8 = _mm_loadl_epi64(reinterpret_cast<const __m128i *>(src));
+    if constexpr (R == Reverse::Yes64)
+    {
+        const __m128i REV_64 = _mm_setr_epi8(7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12, 11, 10, 9, 8);
+        v8 = _mm_shuffle_epi8(v8, REV_64);
+    }
+    else if constexpr (R == Reverse::Yes128)
+    {
+        static_assert(false, "Cannot reverse 8 bytes in 128-bit mode");
+    }
 
     __m128i hi = _mm_and_si128(_mm_srli_epi16(v8, 4), _mm_set1_epi8(0x0F));
     __m128i lo = _mm_and_si128(v8, _mm_set1_epi8(0x0F));
@@ -776,7 +785,7 @@ T decode_integral_naive(const uint8_t * src)
     {
         uint64_t high_part = decode_integral_naive<uint64_t>(src);
         uint64_t low_part = decode_integral_naive<uint64_t>(src + 16);
-        return static_cast<T>(static_cast<T>(high_part) << 64 | low_part);
+        return static_cast<T>((static_cast<T>(high_part) << 64) | low_part);
     }
 }
 
@@ -812,7 +821,7 @@ inline uint64_t decode_integral8(const uint8_t * src)
 #endif
 
 template <typename T, typename Case>
-void encode_integral_naive(uint8_t * FAST_HEX_RESTRICT output, T number, Case)
+void encode_integral_naive(uint8_t * output, T number, Case)
 {
     using namespace heks_detail;
     constexpr auto case_type = Case::value;
@@ -836,18 +845,18 @@ void encode_integral_naive(uint8_t * FAST_HEX_RESTRICT output, T number, Case)
 
 #if defined(__AVX__)
 template <typename T, typename Case>
-void encode_integral8(uint8_t * FAST_HEX_RESTRICT output, T number, Case)
+void encode_integral8(uint8_t * dest, T number, Case)
 {
     using namespace heks_detail;
     static_assert(sizeof(T) == 8, "T must be 8 bytes (64 bits) in size");
     constexpr auto case_type = Case::value;
     number = FAST_HEX_BSWAP64(number);
     const auto * input = reinterpret_cast<const uint8_t *>(&number);
-    encodeHex8Fast<case_type>(output, input);
+    encodeHex8Fast<case_type>(dest, input);
 }
 #elif defined(FAST_HEX_NEON)
 template <typename T, typename Case>
-void encode_integral8(uint8_t * FAST_HEX_RESTRICT output, T number, Case)
+void encode_integral8(uint8_t * output, T number, Case)
 {
     using namespace heks_detail;
     static_assert(sizeof(T) == 8, "T must be 8 bytes (64 bits) in size");
@@ -862,7 +871,7 @@ void encode_integral8(uint8_t * FAST_HEX_RESTRICT output, T number, Case)
 
 #if defined(__AVX2__)
 template <typename T, typename Case>
-void encode_integral16(uint8_t * FAST_HEX_RESTRICT output, T number, Case)
+void encode_integral16(uint8_t * output, T number, Case)
 {
     using namespace heks_detail;
     static_assert(sizeof(T) == 16, "T must be 16 bytes (128 bits) in size");

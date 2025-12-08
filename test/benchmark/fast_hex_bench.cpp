@@ -42,9 +42,9 @@ std::vector<T> createInputData(size_t count, T)
     std::vector<T> data(count);
     for (size_t i = 0; i < count; ++i)
     {
-        if constexpr (sizeof(T) == 8)
+        if constexpr (sizeof(T) <= 8)
         {
-            data[i] = dist(rng);
+            data[i] = static_cast<T>(dist(rng));
         }
         else
         {
@@ -128,6 +128,27 @@ std::vector<T> createInputData(size_t count, T)
     } \
     BENCHMARK(BM_##func_name##_##size_name);
 
+#define DEFINE_DECODE_INTEGRAL_BENCHMARK(func_name, Type, size_val, size_name) \
+    static void BM_##func_name##_##size_name(benchmark::State & state) \
+    { \
+        auto data = createInputData(size_val, Type{}); \
+        std::vector<uint8_t> hex(size_val * 2 * sizeof(Type)); \
+        for (size_t i = 0; i < data.size(); ++i) \
+        { \
+            encode_integral_naive<Type>(hex.data() + i * sizeof(Type) * 2, data[i], lower); \
+        } \
+        std::vector<Type> output(size_val); \
+        for (auto _ : state) \
+        { \
+            for (size_t i = 0; i < data.size(); ++i) \
+            { \
+                output[i] = func_name<Type>(hex.data() + i * sizeof(Type) * 2); \
+            } \
+            benchmark::DoNotOptimize(output); \
+        } \
+    } \
+    BENCHMARK(BM_##func_name##_##size_name);
+
 // clang-format off
 
 // ---- Encoding Benchmarks ----
@@ -201,21 +222,21 @@ DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral_naive, uint64_t, 8, 8_uint64)
 DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral_naive, uint64_t, 1024, 1024_uint64)
 DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral_naive, uint64_t, 1024 * 1024, 1048576_uint64)
 
-#    if defined(FAST_HEX_HAS_INT128)
+#if defined(FAST_HEX_HAS_INT128)
 DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral_naive, __uint128_t, 1, 1_uint128)
 DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral_naive, __uint128_t, 8, 8_uint128)
 DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral_naive, __uint128_t, 1024, 1024_uint128)
 DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral_naive, __uint128_t, 1024 * 1024, 1048576_uint128)
-#    endif
+#endif
 
-#    if defined(__AVX__) || defined(FAST_HEX_NEON)
+#if defined(__AVX__) || defined(FAST_HEX_NEON)
 DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral8, uint64_t, 1, 1_uint64)
 DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral8, uint64_t, 8, 8_uint64)
 DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral8, uint64_t, 1024, 1024_uint64)
 DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral8, uint64_t, 1024 * 1024, 1048576_uint64)
-#    endif // defined(__AVX__)
+#endif // defined(__AVX__)
 
-#    if defined(__AVX2__)
+#if defined(__AVX2__)
 DEFINE_ENCODE_INTEGRAL_BENCHMARK2x8(encode_integral2x8, 1, 1_uint64x2)
 DEFINE_ENCODE_INTEGRAL_BENCHMARK2x8(encode_integral2x8, 8, 8_uint64x2)
 DEFINE_ENCODE_INTEGRAL_BENCHMARK2x8(encode_integral2x8, 1024, 1024_uint64x2)
@@ -225,7 +246,44 @@ DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral16, __uint128_t, 1, 1_uint128)
 DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral16, __uint128_t, 8, 8_uint128)
 DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral16, __uint128_t, 1024, 1024_uint128)
 DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral16, __uint128_t, 1024 * 1024, 1048576_uint128)
-#    endif // defined(__AVX2__)
+#endif // defined(__AVX2__)
+
+#if defined(FAST_HEX_HAS_INT128)
+DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, __uint128_t, 1, 1_uint128)
+DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, __uint128_t, 8, 8_uint128)
+DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, __uint128_t, 64, 64_uint128)
+DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, __uint128_t, 1024, 1024_uint128)
+#endif
+
+
+DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, uint64_t, 1, 1_uint64)
+DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, uint64_t, 8, 8_uint64)
+DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, uint64_t, 64, 64_uint64)
+DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, uint64_t, 1024, 1024_uint64)
+
+DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, uint32_t, 1, 1_uint32)
+DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, uint32_t, 8, 8_uint32)
+DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, uint32_t, 64, 64_uint32)
+DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, uint32_t, 1024, 1024_uint32)
+
+DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, uint16_t, 1, 1_uint16)
+DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, uint16_t, 8, 8_uint16)
+DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, uint16_t, 64, 64_uint16)
+DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, uint16_t, 1024, 1024_uint16)
+
+#if defined(__AVX__)
+template<typename T>
+inline auto __attribute__((always_inline)) _decode_integral8(const uint8_t* src)
+{
+    return decode_integral8(src);
+}
+DEFINE_DECODE_INTEGRAL_BENCHMARK(_decode_integral8, uint64_t, 1, 1_uint64)
+DEFINE_DECODE_INTEGRAL_BENCHMARK(_decode_integral8, uint64_t, 8, 8_uint64)
+DEFINE_DECODE_INTEGRAL_BENCHMARK(_decode_integral8, uint64_t, 64, 64_uint64)
+DEFINE_DECODE_INTEGRAL_BENCHMARK(_decode_integral8, uint64_t, 1024, 1024_uint64)
+#endif // defined(__AVX__)
+
+
 #endif // FAST_HEX_STATIC_SHARED_LIBRARY
 
 BENCHMARK_MAIN();
