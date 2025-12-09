@@ -6,7 +6,7 @@
 #include <cstring>
 #include <string_view>
 
-#if defined(__AVX2__)
+#if defined(__AVX2__) || defined(__AVX__)
 #    if defined(__GNUC__)
 #        include <immintrin.h>
 #    elif defined(_MSC_VER)
@@ -367,22 +367,13 @@ inline void encodeHexImpl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST
 
 #if defined(__AVX__)
 
-template <HexCase H, Reverse R = Reverse::No>
+template <HexCase H>
 inline void encodeHex8Fast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
 {
     const __m128i HEX_LUT_LOWER = _mm_setr_epi8('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f');
     const __m128i HEX_LUT_UPPER = _mm_setr_epi8('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F');
 
     __m128i v8 = _mm_loadl_epi64(reinterpret_cast<const __m128i *>(src));
-    if constexpr (R == Reverse::Yes64)
-    {
-        const __m128i REV_64 = _mm_setr_epi8(7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12, 11, 10, 9, 8);
-        v8 = _mm_shuffle_epi8(v8, REV_64);
-    }
-    else if constexpr (R == Reverse::Yes128)
-    {
-        static_assert(false, "Cannot reverse 8 bytes in 128-bit mode");
-    }
 
     __m128i hi = _mm_and_si128(_mm_srli_epi16(v8, 4), _mm_set1_epi8(0x0F));
     __m128i lo = _mm_and_si128(v8, _mm_set1_epi8(0x0F));
