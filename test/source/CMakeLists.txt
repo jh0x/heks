@@ -4,6 +4,7 @@ project(fast_hexTests LANGUAGES CXX)
 
 include(../../cmake/project-is-top-level.cmake)
 include(../../cmake/folders.cmake)
+include(../../cmake/avx_support.cmake)
 
 # ---- Dependencies ----
 
@@ -42,10 +43,9 @@ add_executable(
 target_link_libraries(fast_hex_test_inline PRIVATE fast_hex::fast_hex doctest)
 target_compile_features(fast_hex_test_inline PRIVATE cxx_std_20)
 
-# ---- AVX Support ----
-include(../../cmake/avx_support.cmake)
-fast_hex_target_enable_avx(fast_hex_test)
-fast_hex_target_enable_avx(fast_hex_test_inline)
+# ---- SIMD Support ----
+fast_hex_target_enable_simd(fast_hex_test)
+fast_hex_target_enable_simd(fast_hex_test_inline)
 
 add_test(NAME fast_hex_test COMMAND fast_hex_test)
 add_test(NAME fast_hex_test_inline COMMAND fast_hex_test_inline)

@@ -96,7 +96,7 @@ TEST_CASE("decode_auto_invalid")
 #endif
 
 
-#if defined(__AVX2__)
+#if defined(FAST_HEX_AVX2)
 TEST_CASE("decodeHexVec_invalid")
 {
     testInvalidHexDecoding<decodeHexVec>();

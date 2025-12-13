@@ -6,20 +6,12 @@
 #include <cstring>
 #include <string_view>
 
-#if defined(__AVX2__) || defined(__AVX__)
+#if defined(FAST_HEX_AVX2) || defined(FAST_HEX_AVX)
 #    if defined(__GNUC__)
 #        include <immintrin.h>
 #    elif defined(_MSC_VER)
 #        include <intrin.h>
 #    endif
-#endif
-
-#if defined(__ARM_ARCH) || defined(__aarch64__) || defined(__arm__) || defined(_M_ARM) || defined(_M_ARM64)
-#    define FAST_HEX_ARM 1
-#endif
-
-#if defined(__ARM_NEON) || defined(__ARM_NEON__) || (defined(__aarch64__) && !defined(__ARM_ARCH_32BIT))
-#    define FAST_HEX_NEON 1
 #endif
 
 #if defined(FAST_HEX_NEON)
@@ -83,14 +75,14 @@ void encodeHex8LowerFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_
 void encodeHex8UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
 #endif // __AVX__
 
-#if defined(__AVX2__)
+#if defined(FAST_HEX_AVX2)
 void decodeHexVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
 
 void encodeHexLowerVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
 void encodeHexUpperVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
 void encodeHex16LowerFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
 void encodeHex16UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
-#endif // defined(__AVX2__)
+#endif // defined(FAST_HEX_AVX2)
 
 #if defined(FAST_HEX_NEON)
 void encodeHexNeonLower(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
@@ -249,7 +241,7 @@ constexpr int8_t unhexBitManip(uint8_t x)
 }
 
 
-#if defined(__AVX2__)
+#if defined(FAST_HEX_AVX2)
 inline const __m256i _9 = _mm256_set1_epi16(9);
 inline const __m256i _15 = _mm256_set1_epi16(0xf);
 
@@ -328,7 +320,7 @@ inline __m256i byte2nib(__m128i val)
     return bytes;
 }
 
-#endif // defined(__AVX2__)
+#endif // defined(FAST_HEX_AVX2)
 
 // clang-format off
 // Hex character lookup as a string_view
@@ -365,7 +357,7 @@ inline void encodeHexImpl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST
     }
 }
 
-#if defined(__AVX__)
+#if defined(FAST_HEX_AVX)
 
 template <HexCase H>
 inline void encodeHex8Fast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
@@ -386,7 +378,7 @@ inline void encodeHex8Fast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAS
 }
 #endif
 
-#if defined(__AVX2__)
+#if defined(FAST_HEX_AVX2)
 // len is number of src bytes
 template <HexCase H>
 inline void encodeHexVecImpl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
@@ -427,7 +419,7 @@ inline void encodeHex16Fast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FA
     // Store all 32 bytes (16 input → 32 hex chars)
     _mm256_storeu_si256(reinterpret_cast<__m256i *>(dest), hexed);
 }
-#endif // defined(__AVX2__)
+#endif // defined(FAST_HEX_AVX2)
 
 #if defined(FAST_HEX_NEON)
 template <HexCase H>
@@ -589,7 +581,7 @@ FAST_HEX_FUNCTION_INLINE void encodeHexUpper(uint8_t * FAST_HEX_RESTRICT dest, c
 }
 
 
-#ifdef __AVX__
+#if defined(FAST_HEX_AVX)
 FAST_HEX_FUNCTION_INLINE void encodeHex8LowerFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
 {
     heks_detail::encodeHex8Fast<heks_detail::HexCase::Lower>(dest, src);
@@ -599,9 +591,9 @@ FAST_HEX_FUNCTION_INLINE void encodeHex8UpperFast(uint8_t * FAST_HEX_RESTRICT de
 {
     heks_detail::encodeHex8Fast<heks_detail::HexCase::Upper>(dest, src);
 }
-#endif // __AVX__
+#endif
 
-#if defined(__AVX2__)
+#if defined(FAST_HEX_AVX2)
 
 // len is number or dest bytes (i.e. half of src length)
 FAST_HEX_FUNCTION_INLINE void decodeHexVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
@@ -659,7 +651,7 @@ FAST_HEX_FUNCTION_INLINE void encodeHex16UpperFast(uint8_t * FAST_HEX_RESTRICT d
 {
     heks_detail::encodeHex16Fast<heks_detail::HexCase::Upper>(dest, src);
 }
-#endif // defined(__AVX2__)
+#endif // defined(FAST_HEX_AVX2)
 
 #if defined(FAST_HEX_NEON)
 
@@ -700,7 +692,7 @@ inline void encode_auto(uint8_t * FAST_HEX_RESTRICT d, const uint8_t * FAST_HEX_
 {
     constexpr auto case_type = Case::value;
 #if defined(__x86_64__) || defined(_M_X64)
-#    if defined(__AVX2__)
+#    if defined(FAST_HEX_AVX2)
     heks_detail::encodeHexVecImpl<case_type>(d, s, n);
 #    else
     heks_detail::encodeHexImpl<case_type>(d, s, n);
@@ -715,7 +707,7 @@ inline void encode_auto(uint8_t * FAST_HEX_RESTRICT d, const uint8_t * FAST_HEX_
 inline void decode_auto(uint8_t * FAST_HEX_RESTRICT d, const uint8_t * FAST_HEX_RESTRICT s, RawLength n)
 {
 #if defined(__x86_64__) || defined(_M_X64)
-#    if defined(__AVX2__)
+#    if defined(FAST_HEX_AVX2)
     decodeHexVec(d, s, n);
 #    elif defined(__BMI__)
     decodeHexBMI(d, s, n);
@@ -780,7 +772,7 @@ T decode_integral_naive(const uint8_t * src)
     }
 }
 
-#if defined(__AVX__)
+#if defined(FAST_HEX_AVX)
 // Based on https://github.com/lemire/Code-used-on-Daniel-Lemire-s-blog/blob/master/2023/07/27/src/base16.c
 inline uint64_t decode_integral8(const uint8_t * src)
 {
@@ -834,7 +826,7 @@ void encode_integral_naive(uint8_t * output, T number, Case)
     }
 }
 
-#if defined(__AVX__)
+#if defined(FAST_HEX_AVX)
 template <typename T, typename Case>
 void encode_integral8(uint8_t * dest, T number, Case)
 {
@@ -860,7 +852,7 @@ void encode_integral8(uint8_t * output, T number, Case)
 }
 #endif
 
-#if defined(__AVX2__)
+#if defined(FAST_HEX_AVX2)
 template <typename T, typename Case>
 void encode_integral16(uint8_t * output, T number, Case)
 {

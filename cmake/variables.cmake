@@ -10,6 +10,9 @@ if(PROJECT_IS_TOP_LEVEL)
     option(fast_hex_BUILD_SHARED_LIBS "Build shared libs." OFF)
     option(fast_hex_USE_NAMESPACE "Use heks namespace for fast_hex library" ON)
     option(fast_hex_ENABLE_MARCH_NATIVE "Enable -march=native" ON)
+    option(fast_hex_ENABLE_AVX "AVX code will be used" ON)
+    option(fast_hex_ENABLE_AVX2 "AVX2 code will be used" ON)
+    option(fast_hex_ENABLE_NEON "NEON code will be used" ON)
 endif()
 
 # ---- Suppress C4251 on Windows ----

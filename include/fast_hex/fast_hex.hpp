@@ -11,14 +11,6 @@
 #    define FAST_HEX_RESTRICT __restrict__
 #endif
 
-#if defined(__ARM_ARCH) || defined(__aarch64__) || defined(__arm__) || defined(_M_ARM) || defined(_M_ARM64)
-#    define FAST_HEX_ARM 1
-#endif
-
-#if defined(__ARM_NEON) || defined(__ARM_NEON__) || (defined(__aarch64__) && !defined(__ARM_ARCH_32BIT))
-#    define FAST_HEX_NEON 1
-#endif
-
 #if FAST_HEX_USE_NAMESPACE
 #    define FAST_HEX_NAMESPACE_OPEN \
         namespace heks \
@@ -49,10 +41,10 @@ FAST_HEX_EXPORT void decodeHexLUT4(uint8_t * FAST_HEX_RESTRICT dest, const uint8
 // [0xAB, 0xCD] -> 0xAB ... by directly applying bit manipulation to extract each nibble
 FAST_HEX_EXPORT void decodeHexBMI(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
 
-#if defined(__AVX2__)
+#if defined(FAST_HEX_AVX2)
 // Optimal AVX2 vectorized version. len is number of dest bytes (1/2 the size of src).
 FAST_HEX_EXPORT void decodeHexVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
-#endif // defined(__AVX2__)
+#endif // defined(FAST_HEX_AVX2)
 
 // Encoders
 // Encode src bytes (e.g. "Test123") into dest hex string (e.g. "54657374313233")
@@ -64,7 +56,7 @@ FAST_HEX_EXPORT void encodeHexLower(uint8_t * FAST_HEX_RESTRICT dest, const uint
 FAST_HEX_EXPORT void encodeHexUpper(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
 
 
-#if defined(__AVX__)
+#if defined(FAST_HEX_AVX)
 // Fast specialized paths for fixed-size encoding
 // Encode exactly 8 bytes (source) into 16 hex characters (dest)
 // [0xAB, 0xCD, 0xEF, 0x12, 0x34, 0x56, 0x78, 0x9A]
@@ -78,7 +70,7 @@ FAST_HEX_EXPORT void encodeHex8LowerFast(uint8_t * FAST_HEX_RESTRICT dest, const
 FAST_HEX_EXPORT void encodeHex8UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
 #endif
 
-#if defined(__AVX2__)
+#if defined(FAST_HEX_AVX2)
 // AVX2 vectorized version. len is number of src bytes. dest must be twice the size of src.
 FAST_HEX_EXPORT void encodeHexLowerVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
 FAST_HEX_EXPORT void encodeHexUpperVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
@@ -86,7 +78,7 @@ FAST_HEX_EXPORT void encodeHexUpperVec(uint8_t * FAST_HEX_RESTRICT dest, const u
 // Encode exactly 16 bytes (source) into 32 hex characters (dest)
 FAST_HEX_EXPORT void encodeHex16LowerFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
 FAST_HEX_EXPORT void encodeHex16UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
-#endif // defined(__AVX2__)
+#endif // defined(FAST_HEX_AVX2)
 
 #if defined(FAST_HEX_NEON)
 // ARM NEON optimized version

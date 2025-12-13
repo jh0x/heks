@@ -319,7 +319,7 @@ TEST_CASE("encodeHex")
     testHexEncoding<encodeHexLower, encodeHexUpper>();
 }
 
-#if defined(__AVX2__)
+#if defined(FAST_HEX_AVX2)
 TEST_CASE("encodeHexVec")
 {
     testHexEncoding<encodeHexLowerVec, encodeHexUpperVec>();

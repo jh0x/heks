@@ -97,6 +97,7 @@ struct TestCase2x8
     std::string_view expected_upper;
 };
 
+#if defined(FAST_HEX_AVX2)
 // clang-format off
 static constexpr TestCase2x8 test_cases2x8[] = {
     {0x0011223344556677ULL, 0x8899AABBCCDDEEFFULL, "00112233445566778899aabbccddeeff"sv, "00112233445566778899AABBCCDDEEFF"sv},
@@ -109,7 +110,7 @@ static constexpr TestCase2x8 test_cases2x8[] = {
     {0x0000000000000001ULL, 0x1000000000000000ULL, "00000000000000011000000000000000"sv, "00000000000000011000000000000000"sv},
 };
 // clang-format on
-
+#endif
 
 template <typename Fun, typename TC>
 void run_encode_integral_test(Fun encode_func, size_t outlength, const TC & test_cases)
@@ -164,13 +165,13 @@ TEST_SUITE("encode_integral")
         run_encode_integral_test([](auto dst, auto input, auto c) { encode_integral_naive(dst, input, c); }, 32, test_cases16);
     }
 #endif
-#if defined(__AVX__) || defined(FAST_HEX_NEON)
+#if defined(FAST_HEX_AVX) || defined(FAST_HEX_NEON)
     TEST_CASE("encode_integral 8")
     {
         run_encode_integral_test([](auto dst, auto input, auto c) { encode_integral8(dst, input, c); }, 16, test_cases8);
     }
-#endif // defined(__AVX__)
-#if defined(__AVX2__)
+#endif // defined(FAST_HEX_AVX)
+#if defined(FAST_HEX_AVX2)
     TEST_CASE("encode_integral 16")
     {
         run_encode_integral_test([](auto dst, auto input, auto c) { encode_integral16(dst, input, c); }, 32, test_cases16);
@@ -194,7 +195,7 @@ TEST_SUITE("encode_integral")
             REQUIRE(result_upper == tc.expected_upper);
         }
     }
-#endif // defined(__AVX2__)
+#endif // defined(FAST_HEX_AVX2)
 }
 
 template <typename T>
@@ -256,12 +257,12 @@ TEST_SUITE("decode_integral")
     {
         run_decode_integral_test(decode_integral_naive<uint64_t>, test_cases8);
     }
-#if defined(__AVX__)
+#if defined(FAST_HEX_AVX)
     TEST_CASE("decode_integral 8 naive")
     {
         run_decode_integral_test(decode_integral8, test_cases8);
     }
-#endif // defined(__AVX__)
+#endif // defined(FAST_HEX_AVX)
 #if defined(FAST_HEX_HAS_INT128)
     TEST_CASE("decode_integral 16 naive")
     {

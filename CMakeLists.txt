@@ -90,7 +90,7 @@ if(fast_hex_BUILD_LIBS)
 
     target_compile_features(fast_hex_fast_hex PUBLIC cxx_std_20)
 
-    fast_hex_target_enable_avx(fast_hex_fast_hex)
+    fast_hex_target_enable_simd(fast_hex_fast_hex)
 endif()
 
 # ---- Install rules ----

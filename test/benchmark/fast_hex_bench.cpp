@@ -160,11 +160,11 @@ DEFINE_ENCODE_BENCHMARK(encodeHexLower, 64, 64B)
 DEFINE_ENCODE_BENCHMARK(encodeHexLower, 1024, 1KB)
 DEFINE_ENCODE_BENCHMARK(encodeHexLower, 1024 * 1024, 1MB)
 
-#if defined(__AVX__)
+#if defined(FAST_HEX_AVX)
 DEFINE_ENCODE_BENCHMARK_FAST(encodeHex8LowerFast, 8, 8B)
 #endif
 
-#if defined(__AVX2__)
+#if defined(FAST_HEX_AVX2)
 DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec, 8, 8B)
 DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec, 16, 16B)
 DEFINE_ENCODE_BENCHMARK_FAST(encodeHex16LowerFast, 16, 16B)
@@ -172,7 +172,7 @@ DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec, 32, 32B)
 DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec, 64, 64B)
 DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec, 1024, 1KB)
 DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec, 1024 * 1024, 1MB)
-#endif // defined(__AVX2__)
+#endif // defined(FAST_HEX_AVX2)
 
 #if defined(FAST_HEX_NEON)
 DEFINE_ENCODE_BENCHMARK(encodeHexNeonLower, 8, 8B)
@@ -207,14 +207,14 @@ DEFINE_DECODE_BENCHMARK(decodeHexBMI, 64, 64B)
 DEFINE_DECODE_BENCHMARK(decodeHexBMI, 1024, 1KB)
 DEFINE_DECODE_BENCHMARK(decodeHexBMI, 1024 * 1024, 1MB)
 
-#if defined(__AVX2__)
+#if defined(FAST_HEX_AVX2)
 DEFINE_DECODE_BENCHMARK(decodeHexVec, 8, 8B)
 DEFINE_DECODE_BENCHMARK(decodeHexVec, 16, 16B)
 DEFINE_DECODE_BENCHMARK(decodeHexVec, 32, 32B)
 DEFINE_DECODE_BENCHMARK(decodeHexVec, 64, 64B)
 DEFINE_DECODE_BENCHMARK(decodeHexVec, 1024, 1KB)
 DEFINE_DECODE_BENCHMARK(decodeHexVec, 1024 * 1024, 1MB)
-#endif // defined(__AVX2__)
+#endif // defined(FAST_HEX_AVX2)
 
 #ifndef FAST_HEX_STATIC_SHARED_LIBRARY
 DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral_naive, uint64_t, 1, 1_uint64)
@@ -229,14 +229,14 @@ DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral_naive, __uint128_t, 1024, 1024_
 DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral_naive, __uint128_t, 1024 * 1024, 1048576_uint128)
 #endif
 
-#if defined(__AVX__) || defined(FAST_HEX_NEON)
+#if defined(FAST_HEX_AVX) || defined(FAST_HEX_NEON)
 DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral8, uint64_t, 1, 1_uint64)
 DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral8, uint64_t, 8, 8_uint64)
 DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral8, uint64_t, 1024, 1024_uint64)
 DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral8, uint64_t, 1024 * 1024, 1048576_uint64)
-#endif // defined(__AVX__)
+#endif // defined(FAST_HEX_AVX)
 
-#if defined(__AVX2__)
+#if defined(FAST_HEX_AVX2)
 DEFINE_ENCODE_INTEGRAL_BENCHMARK2x8(encode_integral2x8, 1, 1_uint64x2)
 DEFINE_ENCODE_INTEGRAL_BENCHMARK2x8(encode_integral2x8, 8, 8_uint64x2)
 DEFINE_ENCODE_INTEGRAL_BENCHMARK2x8(encode_integral2x8, 1024, 1024_uint64x2)
@@ -246,7 +246,7 @@ DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral16, __uint128_t, 1, 1_uint128)
 DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral16, __uint128_t, 8, 8_uint128)
 DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral16, __uint128_t, 1024, 1024_uint128)
 DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral16, __uint128_t, 1024 * 1024, 1048576_uint128)
-#endif // defined(__AVX2__)
+#endif // defined(FAST_HEX_AVX2)
 
 #if defined(FAST_HEX_HAS_INT128)
 DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, __uint128_t, 1, 1_uint128)
@@ -271,7 +271,7 @@ DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, uint16_t, 8, 8_uint16)
 DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, uint16_t, 64, 64_uint16)
 DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, uint16_t, 1024, 1024_uint16)
 
-#if defined(__AVX__)
+#if defined(FAST_HEX_AVX)
 template<typename T>
 inline auto __attribute__((always_inline)) _decode_integral8(const uint8_t* src)
 {
@@ -281,7 +281,7 @@ DEFINE_DECODE_INTEGRAL_BENCHMARK(_decode_integral8, uint64_t, 1, 1_uint64)
 DEFINE_DECODE_INTEGRAL_BENCHMARK(_decode_integral8, uint64_t, 8, 8_uint64)
 DEFINE_DECODE_INTEGRAL_BENCHMARK(_decode_integral8, uint64_t, 64, 64_uint64)
 DEFINE_DECODE_INTEGRAL_BENCHMARK(_decode_integral8, uint64_t, 1024, 1024_uint64)
-#endif // defined(__AVX__)
+#endif // defined(FAST_HEX_AVX)
 
 
 #endif // FAST_HEX_STATIC_SHARED_LIBRARY
