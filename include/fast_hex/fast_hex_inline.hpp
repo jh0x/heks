@@ -242,7 +242,7 @@ constexpr int8_t unhexBitManip(uint8_t x)
 
 
 #if defined(FAST_HEX_AVX2)
-inline __m256i unhexBitManip(const __m256i value)
+__attribute__((target("avx2"))) inline __m256i unhexBitManip(const __m256i value)
 {
     const __m256i _9 = _mm256_set1_epi16(9);
     const __m256i _15 = _mm256_set1_epi16(0xf);
@@ -273,7 +273,7 @@ inline __m256i unhexBitManip(const __m256i value)
 }
 
 template <HexCase H>
-inline __m256i hex(__m256i value)
+__attribute__((target("avx2"))) inline __m256i hex(__m256i value)
 {
     if constexpr (H == HexCase::Lower)
     {
@@ -295,7 +295,7 @@ inline __m256i hex(__m256i value)
 
 // (a << 4) | b;
 // a and b must be 16-bit elements. Output is packed 8-bit elements.
-inline __m256i nib2byte(__m256i a1, __m256i b1, __m256i a2, __m256i b2)
+__attribute__((target("avx2"))) inline __m256i nib2byte(__m256i a1, __m256i b1, __m256i a2, __m256i b2)
 {
     __m256i a4_1 = _mm256_slli_epi16(a1, 4);
     __m256i a4_2 = _mm256_slli_epi16(a2, 4);
@@ -308,7 +308,7 @@ inline __m256i nib2byte(__m256i a1, __m256i b1, __m256i a2, __m256i b2)
 }
 
 // a -> [a >> 4, a & 0b1111]
-inline __m256i byte2nib(__m128i val)
+__attribute__((target("avx2"))) inline __m256i byte2nib(__m128i val)
 {
     const __m256i ROT2 = _mm256_setr_epi8(
         -1, 0, -1, 2, -1, 4, -1, 6, -1, 8, -1, 10, -1, 12, -1, 14, -1, 0, -1, 2, -1, 4, -1, 6, -1, 8, -1, 10, -1, 12, -1, 14);
@@ -360,7 +360,7 @@ inline void encodeHexImpl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST
 #if defined(FAST_HEX_AVX)
 
 template <HexCase H>
-inline void encodeHex8Fast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
+__attribute__((target("avx"))) inline void encodeHex8Fast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
 {
     const __m128i HEX_LUT_LOWER = _mm_setr_epi8('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f');
     const __m128i HEX_LUT_UPPER = _mm_setr_epi8('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F');
@@ -381,7 +381,8 @@ inline void encodeHex8Fast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAS
 #if defined(FAST_HEX_AVX2)
 // len is number of src bytes
 template <HexCase H>
-inline void encodeHexVecImpl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+__attribute__((target("avx2"))) inline void
+encodeHexVecImpl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
     const auto raw_length = static_cast<size_t>(len);
     const __m128i * input128 = reinterpret_cast<const __m128i *>(src);
@@ -401,7 +402,7 @@ inline void encodeHexVecImpl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * F
 }
 
 template <HexCase H, Reverse R = Reverse::No>
-inline void encodeHex16Fast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
+__attribute__((target("avx2"))) inline void encodeHex16Fast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
 {
     __m128i v16 = _mm_lddqu_si128(reinterpret_cast<const __m128i *>(src));
     if constexpr (R == Reverse::Yes128)
@@ -582,12 +583,14 @@ FAST_HEX_FUNCTION_INLINE void encodeHexUpper(uint8_t * FAST_HEX_RESTRICT dest, c
 
 
 #if defined(FAST_HEX_AVX)
-FAST_HEX_FUNCTION_INLINE void encodeHex8LowerFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
+__attribute__((target("avx"))) FAST_HEX_FUNCTION_INLINE void
+encodeHex8LowerFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
 {
     heks_detail::encodeHex8Fast<heks_detail::HexCase::Lower>(dest, src);
 }
 
-FAST_HEX_FUNCTION_INLINE void encodeHex8UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
+__attribute__((target("avx"))) FAST_HEX_FUNCTION_INLINE void
+encodeHex8UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
 {
     heks_detail::encodeHex8Fast<heks_detail::HexCase::Upper>(dest, src);
 }
@@ -596,7 +599,8 @@ FAST_HEX_FUNCTION_INLINE void encodeHex8UpperFast(uint8_t * FAST_HEX_RESTRICT de
 #if defined(FAST_HEX_AVX2)
 
 // len is number or dest bytes (i.e. half of src length)
-FAST_HEX_FUNCTION_INLINE void decodeHexVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+__attribute__((target("avx2"))) FAST_HEX_FUNCTION_INLINE void
+decodeHexVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
     using namespace heks_detail;
     auto raw_length = static_cast<size_t>(len);
@@ -632,22 +636,25 @@ FAST_HEX_FUNCTION_INLINE void decodeHexVec(uint8_t * FAST_HEX_RESTRICT dest, con
     decodeHexBMI(dest, src, RawLength{raw_length});
 }
 
-FAST_HEX_FUNCTION_INLINE void encodeHexLowerVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+__attribute__((target("avx2"))) FAST_HEX_FUNCTION_INLINE void
+encodeHexLowerVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
     heks_detail::encodeHexVecImpl<heks_detail::HexCase::Lower>(dest, src, len);
 }
-FAST_HEX_FUNCTION_INLINE void encodeHexUpperVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+__attribute__((target("avx2"))) FAST_HEX_FUNCTION_INLINE void
+encodeHexUpperVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
     heks_detail::encodeHexVecImpl<heks_detail::HexCase::Upper>(dest, src, len);
 }
 
-
-FAST_HEX_FUNCTION_INLINE void encodeHex16LowerFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
+__attribute__((target("avx2"))) FAST_HEX_FUNCTION_INLINE void
+encodeHex16LowerFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
 {
     heks_detail::encodeHex16Fast<heks_detail::HexCase::Lower>(dest, src);
 }
 
-FAST_HEX_FUNCTION_INLINE void encodeHex16UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
+__attribute__((target("avx2"))) FAST_HEX_FUNCTION_INLINE void
+encodeHex16UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
 {
     heks_detail::encodeHex16Fast<heks_detail::HexCase::Upper>(dest, src);
 }
@@ -774,7 +781,7 @@ T decode_integral_naive(const uint8_t * src)
 
 #if defined(FAST_HEX_AVX)
 // Based on https://github.com/lemire/Code-used-on-Daniel-Lemire-s-blog/blob/master/2023/07/27/src/base16.c
-inline uint64_t decode_integral8(const uint8_t * src)
+__attribute__((target("avx"))) inline uint64_t decode_integral8(const uint8_t * src)
 {
     // Rebase constants for hex digits
     // clang-format off
@@ -828,7 +835,7 @@ void encode_integral_naive(uint8_t * output, T number, Case)
 
 #if defined(FAST_HEX_AVX)
 template <typename T, typename Case>
-void encode_integral8(uint8_t * dest, T number, Case)
+__attribute__((target("avx"))) void encode_integral8(uint8_t * dest, T number, Case)
 {
     using namespace heks_detail;
     static_assert(sizeof(T) == 8, "T must be 8 bytes (64 bits) in size");
@@ -854,7 +861,7 @@ void encode_integral8(uint8_t * output, T number, Case)
 
 #if defined(FAST_HEX_AVX2)
 template <typename T, typename Case>
-void encode_integral16(uint8_t * output, T number, Case)
+__attribute__((target("avx2"))) void encode_integral16(uint8_t * output, T number, Case)
 {
     using namespace heks_detail;
     static_assert(sizeof(T) == 16, "T must be 16 bytes (128 bits) in size");
