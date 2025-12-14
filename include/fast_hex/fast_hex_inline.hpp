@@ -242,11 +242,11 @@ constexpr int8_t unhexBitManip(uint8_t x)
 
 
 #if defined(FAST_HEX_AVX2)
-inline const __m256i _9 = _mm256_set1_epi16(9);
-inline const __m256i _15 = _mm256_set1_epi16(0xf);
-
 inline __m256i unhexBitManip(const __m256i value)
 {
+    const __m256i _9 = _mm256_set1_epi16(9);
+    const __m256i _15 = _mm256_set1_epi16(0xf);
+
     __m256i and15 = _mm256_and_si256(value, _15);
 
 #    ifndef NO_MADDUBS
