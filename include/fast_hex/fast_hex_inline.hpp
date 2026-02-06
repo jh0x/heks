@@ -24,7 +24,7 @@
 #    define FAST_HEX_RESTRICT __restrict__
 #endif
 
-#ifdef FAST_HEX_USE_NAMESPACE
+#if FAST_HEX_USE_NAMESPACE
 #    define FAST_HEX_NAMESPACE_OPEN \
         namespace heks \
         {
@@ -66,14 +66,15 @@ enum class RawLength : size_t;
 
 void decodeHexLUT(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
 void decodeHexLUT4(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
+void decodeHexBMI(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
 
 void encodeHexLower(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
 void encodeHexUpper(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
 
-#ifdef __AVX__
+#if defined(FAST_HEX_AVX)
 void encodeHex8LowerFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
 void encodeHex8UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
-#endif // __AVX__
+#endif // defined(FAST_HEX_AVX)
 
 #if defined(FAST_HEX_AVX2)
 void decodeHexVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);

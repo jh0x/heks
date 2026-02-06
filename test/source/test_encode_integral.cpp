@@ -258,7 +258,7 @@ TEST_SUITE("decode_integral")
         run_decode_integral_test(decode_integral_naive<uint64_t>, test_cases8);
     }
 #if defined(FAST_HEX_AVX)
-    TEST_CASE("decode_integral 8 naive")
+    TEST_CASE("decode_integral 8 AVX")
     {
         run_decode_integral_test(decode_integral8, test_cases8);
     }
