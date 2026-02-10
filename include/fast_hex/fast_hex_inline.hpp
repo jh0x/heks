@@ -347,14 +347,13 @@ constexpr char hex(uint8_t value)
 template <HexCase H>
 inline void encodeHexImpl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
+    using namespace heks_detail;
+    const auto & hex_table = (H == HexCase::Lower) ? hex_to_char_lower_sv : hex_to_char_upper_sv;
+
     const auto raw_length = static_cast<size_t>(len);
     for (size_t i = 0; i < raw_length; i++)
     {
-        uint8_t a = src[i];
-        uint8_t lo = a & 0b1111;
-        uint8_t hi = a >> 4;
-        *dest++ = static_cast<uint8_t>(hex<H>(hi));
-        *dest++ = static_cast<uint8_t>(hex<H>(lo));
+        std::memcpy(dest + i * 2, &hex_table[static_cast<size_t>(src[i]) * 2], 2);
     }
 }
 
