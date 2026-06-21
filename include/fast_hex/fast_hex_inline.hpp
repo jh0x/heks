@@ -88,6 +88,8 @@ void encodeHex16UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST
 #if defined(FAST_HEX_NEON)
 void encodeHexNeonLower(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
 void encodeHexNeonUpper(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
+void encodeHex16LowerNeon(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
+void encodeHex16UpperNeon(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
 #endif // FAST_HEX_NEON
 
 /////////////////////////////////////////////////////////////////////////////
@@ -423,56 +425,56 @@ __attribute__((target("avx2"))) inline void encodeHex16Fast(uint8_t * FAST_HEX_R
 #endif // defined(FAST_HEX_AVX2)
 
 #if defined(FAST_HEX_NEON)
+
+// On AArch64, vqtbl1q_u8/vqtbl1_u8 perform full-width table lookups in a single instruction.
+// On ARMv7, fall back to vtbl2_u8 with split/combine.
+#    if defined(__aarch64__) || defined(_M_ARM64)
+inline uint8x16_t neon_tbl_q(uint8x16_t lut, uint8x16_t idx)
+{
+    return vqtbl1q_u8(lut, idx);
+}
+inline uint8x8_t neon_tbl(uint8x16_t lut, uint8x8_t idx)
+{
+    return vqtbl1_u8(lut, idx);
+}
+#    else
+inline uint8x16_t neon_tbl_q(uint8x16_t lut, uint8x16_t idx)
+{
+    uint8x8x2_t tbl = {{vget_low_u8(lut), vget_high_u8(lut)}};
+    return vcombine_u8(vtbl2_u8(tbl, vget_low_u8(idx)), vtbl2_u8(tbl, vget_high_u8(idx)));
+}
+inline uint8x8_t neon_tbl(uint8x16_t lut, uint8x8_t idx)
+{
+    uint8x8x2_t tbl = {{vget_low_u8(lut), vget_high_u8(lut)}};
+    return vtbl2_u8(tbl, idx);
+}
+#    endif
+
 template <HexCase H>
 void encodeHexNeon_impl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength raw_len)
 {
     auto len = static_cast<size_t>(raw_len);
     // clang-format off
-    alignas(8) constexpr uint8_t HEX_LUT_LOWER[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
-    alignas(8) constexpr uint8_t HEX_LUT_UPPER[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
+    alignas(16) constexpr uint8_t HEX_LUT_LOWER[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+    alignas(16) constexpr uint8_t HEX_LUT_UPPER[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
     // clang-format on
 
-    // Pick and load the right LUTs based on HexCase
-    const uint8_t * lut1 = (H == HexCase::Upper) ? HEX_LUT_UPPER : HEX_LUT_LOWER;
-    const uint8_t * lut2 = (H == HexCase::Upper) ? (HEX_LUT_UPPER + 8) : (HEX_LUT_LOWER + 8);
-    uint8x8_t lut_vec1 = vld1_u8(lut1);
-    uint8x8_t lut_vec2 = vld1_u8(lut2);
+    uint8x16_t lut = vld1q_u8((H == HexCase::Upper) ? HEX_LUT_UPPER : HEX_LUT_LOWER);
 
     size_t i = 0;
 
     while (len >= 16)
     {
-        // Load 16 bytes from the source
         uint8x16_t invec = vld1q_u8(src + i);
 
-        // Extract high and low nibbles
-        uint8x16_t hi_nibbles = vshrq_n_u8(invec, 4); // Shift right by 4 bits (high nibble)
-        uint8x16_t lo_nibbles = vandq_u8(invec, vdupq_n_u8(0x0F)); // Mask lower 4 bits (low nibble)
+        uint8x16_t hi_nibbles = vshrq_n_u8(invec, 4);
+        uint8x16_t lo_nibbles = vandq_u8(invec, vdupq_n_u8(0x0F));
 
-        // Process the low 8 bytes
-        uint8x8_t hi_lo = vget_low_u8(hi_nibbles);
-        uint8x8_t lo_lo = vget_low_u8(lo_nibbles);
+        uint8x16_t hi_chars = neon_tbl_q(lut, hi_nibbles);
+        uint8x16_t lo_chars = neon_tbl_q(lut, lo_nibbles);
 
-        // Lookup the hex characters
-        uint8x8_t hi_chars_lo = vtbl2_u8({lut_vec1, lut_vec2}, hi_lo);
-        uint8x8_t lo_chars_lo = vtbl2_u8({lut_vec1, lut_vec2}, lo_lo);
-
-        // Process the high 8 bytes
-        uint8x8_t hi_hi = vget_high_u8(hi_nibbles);
-        uint8x8_t lo_hi = vget_high_u8(lo_nibbles);
-
-        // Lookup the hex characters
-        uint8x8_t hi_chars_hi = vtbl2_u8({lut_vec1, lut_vec2}, hi_hi);
-        uint8x8_t lo_chars_hi = vtbl2_u8({lut_vec1, lut_vec2}, lo_hi);
-
-        // Combine the low and high parts of the results
-        uint8x16_t hi_chars = vcombine_u8(hi_chars_lo, hi_chars_hi);
-        uint8x16_t lo_chars = vcombine_u8(lo_chars_lo, lo_chars_hi);
-
-        // Zip high and low
         uint8x16x2_t interleaved = vzipq_u8(hi_chars, lo_chars);
 
-        // Store the zipped result
         vst1q_u8(dest + (i * 2), interleaved.val[0]);
         vst1q_u8(dest + (i * 2) + 16, interleaved.val[1]);
 
@@ -487,18 +489,12 @@ template <HexCase H, Reverse R = Reverse::No>
 void encodeHexNeon8_impl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
 {
     static_assert(R != Reverse::Yes128, "For 8-byte input, only Reverse::No and Reverse::Yes64 is supported.");
-    static const uint8_t HEX_LUT_LOWER[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
-    static const uint8_t HEX_LUT_UPPER[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
+    // clang-format off
+    alignas(16) static const uint8_t HEX_LUT_LOWER[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+    alignas(16) static const uint8_t HEX_LUT_UPPER[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
+    // clang-format on
 
-    const uint8_t * lut1 = (H == HexCase::Upper) ? HEX_LUT_UPPER : HEX_LUT_LOWER;
-    const uint8_t * lut2 = (H == HexCase::Upper) ? HEX_LUT_UPPER + 8 : HEX_LUT_LOWER + 8;
-
-    uint8x8_t lut_vec1 = vld1_u8(lut1);
-    uint8x8_t lut_vec2 = vld1_u8(lut2);
-
-    uint8x8x2_t tbl;
-    tbl.val[0] = lut_vec1;
-    tbl.val[1] = lut_vec2;
+    uint8x16_t lut = vld1q_u8((H == HexCase::Upper) ? HEX_LUT_UPPER : HEX_LUT_LOWER);
 
     uint8x8_t in = vld1_u8(src);
     if constexpr (R == Reverse::Yes64)
@@ -509,15 +505,45 @@ void encodeHexNeon8_impl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_
     uint8x8_t hi = vshr_n_u8(in, 4);
     uint8x8_t lo = vand_u8(in, vdup_n_u8(0x0F));
 
-    uint8x8_t hi_chars = vtbl2_u8(tbl, hi);
-    uint8x8_t lo_chars = vtbl2_u8(tbl, lo);
+    uint8x8_t hi_chars = neon_tbl(lut, hi);
+    uint8x8_t lo_chars = neon_tbl(lut, lo);
 
     uint8x8x2_t zipped = vzip_u8(hi_chars, lo_chars);
-    uint8x8_t out0 = zipped.val[0];
-    uint8x8_t out1 = zipped.val[1];
+    vst1_u8(dest, zipped.val[0]);
+    vst1_u8(dest + 8, zipped.val[1]);
+}
 
-    vst1_u8(dest, out0);
-    vst1_u8(dest + 8, out1);
+template <HexCase H, Reverse R = Reverse::No>
+void encodeHexNeon16_impl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
+{
+    // clang-format off
+    alignas(16) static const uint8_t HEX_LUT_LOWER[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+    alignas(16) static const uint8_t HEX_LUT_UPPER[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
+    // clang-format on
+
+    uint8x16_t lut = vld1q_u8((H == HexCase::Upper) ? HEX_LUT_UPPER : HEX_LUT_LOWER);
+
+    uint8x16_t in = vld1q_u8(src);
+    if constexpr (R == Reverse::Yes128)
+    {
+        // Full 16-byte reverse: reverse within 64-bit halves, then swap halves
+        in = vrev64q_u8(in);
+        in = vextq_u8(in, in, 8);
+    }
+    else if constexpr (R == Reverse::Yes64)
+    {
+        in = vrev64q_u8(in);
+    }
+
+    uint8x16_t hi_nibbles = vshrq_n_u8(in, 4);
+    uint8x16_t lo_nibbles = vandq_u8(in, vdupq_n_u8(0x0F));
+
+    uint8x16_t hi_chars = neon_tbl_q(lut, hi_nibbles);
+    uint8x16_t lo_chars = neon_tbl_q(lut, lo_nibbles);
+
+    uint8x16x2_t interleaved = vzipq_u8(hi_chars, lo_chars);
+    vst1q_u8(dest, interleaved.val[0]);
+    vst1q_u8(dest + 16, interleaved.val[1]);
 }
 
 #endif // FAST_HEX_NEON
@@ -679,6 +705,15 @@ FAST_HEX_FUNCTION_INLINE void encodeHex8LowerNeon(uint8_t * FAST_HEX_RESTRICT de
 FAST_HEX_FUNCTION_INLINE void encodeHex8UpperNeon(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
 {
     heks_detail::encodeHexNeon8_impl<heks_detail::HexCase::Upper>(dest, src);
+}
+
+FAST_HEX_FUNCTION_INLINE void encodeHex16LowerNeon(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
+{
+    heks_detail::encodeHexNeon16_impl<heks_detail::HexCase::Lower>(dest, src);
+}
+FAST_HEX_FUNCTION_INLINE void encodeHex16UpperNeon(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
+{
+    heks_detail::encodeHexNeon16_impl<heks_detail::HexCase::Upper>(dest, src);
 }
 
 #endif
@@ -877,6 +912,31 @@ void encode_integral2x8(uint8_t * FAST_HEX_RESTRICT output, const T * FAST_HEX_R
     constexpr auto case_type = Case::value;
     const auto * input = reinterpret_cast<const uint8_t *>(first);
     encodeHex16Fast<case_type, Reverse::Yes64>(output, input);
+}
+#elif defined(FAST_HEX_NEON)
+template <typename T, typename Case>
+void encode_integral16(uint8_t * output, T number, Case)
+{
+    using namespace heks_detail;
+    static_assert(sizeof(T) == 16, "T must be 16 bytes (128 bits) in size");
+    constexpr auto case_type = Case::value;
+    const auto * input = reinterpret_cast<const uint8_t *>(&number);
+    if constexpr (std::endian::native == std::endian::little)
+        encodeHexNeon16_impl<case_type, Reverse::Yes128>(output, input);
+    else
+        encodeHexNeon16_impl<case_type, Reverse::No>(output, input);
+}
+template <typename T, typename Case>
+void encode_integral2x8(uint8_t * FAST_HEX_RESTRICT output, const T * FAST_HEX_RESTRICT first, Case)
+{
+    using namespace heks_detail;
+    static_assert(sizeof(T) == 8, "T must be 8 bytes (64 bits) in size");
+    constexpr auto case_type = Case::value;
+    const auto * input = reinterpret_cast<const uint8_t *>(first);
+    if constexpr (std::endian::native == std::endian::little)
+        encodeHexNeon16_impl<case_type, Reverse::Yes64>(output, input);
+    else
+        encodeHexNeon16_impl<case_type, Reverse::No>(output, input);
 }
 #endif
 
