@@ -86,6 +86,8 @@ FAST_HEX_EXPORT void encodeHexNeonLower(uint8_t * FAST_HEX_RESTRICT dest, const 
 FAST_HEX_EXPORT void encodeHexNeonUpper(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
 FAST_HEX_EXPORT void encodeHex8LowerNeon(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
 FAST_HEX_EXPORT void encodeHex8UpperNeon(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
+FAST_HEX_EXPORT void encodeHex16LowerNeon(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
+FAST_HEX_EXPORT void encodeHex16UpperNeon(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
 #endif // FAST_HEX_NEON
 
 FAST_HEX_NAMESPACE_CLOSE

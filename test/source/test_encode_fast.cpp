@@ -157,5 +157,24 @@ TEST_SUITE("encodeHexFast")
         run_tests_unaligned<8, 6>(test_cases_8, encodeHex8LowerNeon, encodeHex8UpperNeon);
         run_tests_unaligned<8, 7>(test_cases_8, encodeHex8LowerNeon, encodeHex8UpperNeon);
     }
+    TEST_CASE("encodeHex16 NEON Fast")
+    {
+        run_tests_aligned<16>(test_cases_16, encodeHex16LowerNeon, encodeHex16UpperNeon);
+        run_tests_unaligned<16, 1>(test_cases_16, encodeHex16LowerNeon, encodeHex16UpperNeon);
+        run_tests_unaligned<16, 2>(test_cases_16, encodeHex16LowerNeon, encodeHex16UpperNeon);
+        run_tests_unaligned<16, 3>(test_cases_16, encodeHex16LowerNeon, encodeHex16UpperNeon);
+        run_tests_unaligned<16, 4>(test_cases_16, encodeHex16LowerNeon, encodeHex16UpperNeon);
+        run_tests_unaligned<16, 5>(test_cases_16, encodeHex16LowerNeon, encodeHex16UpperNeon);
+        run_tests_unaligned<16, 6>(test_cases_16, encodeHex16LowerNeon, encodeHex16UpperNeon);
+        run_tests_unaligned<16, 7>(test_cases_16, encodeHex16LowerNeon, encodeHex16UpperNeon);
+        run_tests_unaligned<16, 8>(test_cases_16, encodeHex16LowerNeon, encodeHex16UpperNeon);
+        run_tests_unaligned<16, 9>(test_cases_16, encodeHex16LowerNeon, encodeHex16UpperNeon);
+        run_tests_unaligned<16, 10>(test_cases_16, encodeHex16LowerNeon, encodeHex16UpperNeon);
+        run_tests_unaligned<16, 11>(test_cases_16, encodeHex16LowerNeon, encodeHex16UpperNeon);
+        run_tests_unaligned<16, 12>(test_cases_16, encodeHex16LowerNeon, encodeHex16UpperNeon);
+        run_tests_unaligned<16, 13>(test_cases_16, encodeHex16LowerNeon, encodeHex16UpperNeon);
+        run_tests_unaligned<16, 14>(test_cases_16, encodeHex16LowerNeon, encodeHex16UpperNeon);
+        run_tests_unaligned<16, 15>(test_cases_16, encodeHex16LowerNeon, encodeHex16UpperNeon);
+    }
 #endif
 }
