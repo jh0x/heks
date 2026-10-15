@@ -11,13 +11,17 @@ on:
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
 
     steps:
     - uses: actions/checkout@v4
 
     - uses: actions/setup-python@v5
       with: { python-version: "3.12" }
+
+    - name: Install clang-format
+      run: sudo apt-get update -q
+        && sudo apt-get install clang-format-18 -q -y
 
     - name: Install codespell
       run: pip3 install codespell
@@ -32,7 +36,7 @@ jobs:
   coverage:
     needs: [lint]
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
 
     # To enable coverage, delete the last line from the conditional below and
     # edit the "<name>" placeholder to your GitHub name.
@@ -74,15 +78,17 @@ jobs:
 
     strategy:
       matrix:
-        compiler: [gcc, clang-18, clang-19, clang-20]
+        compiler: [gcc, clang-18, clang-19, clang-20, clang-21, clang-22]
         build_type: [Debug, Release]
         include:
-        - { compiler: gcc, cc: gcc, cxx: g++ }
-        - { compiler: clang-18, cc: clang-18, cxx: clang++-18 }
-        - { compiler: clang-19, cc: clang-19, cxx: clang++-19 }
-        - { compiler: clang-20, cc: clang-20, cxx: clang++-20 }
+        - { compiler: gcc, cc: gcc, cxx: g++, tidy: clang-tidy-22 }
+        - { compiler: clang-18, cc: clang-18, cxx: clang++-18, tidy: clang-tidy-18 }
+        - { compiler: clang-19, cc: clang-19, cxx: clang++-19, tidy: clang-tidy-19 }
+        - { compiler: clang-20, cc: clang-20, cxx: clang++-20, tidy: clang-tidy-20 }
+        - { compiler: clang-21, cc: clang-21, cxx: clang++-21, tidy: clang-tidy-21 }
+        - { compiler: clang-22, cc: clang-22, cxx: clang++-22, tidy: clang-tidy-22 }
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
 
     env:
       CXX: ${{ matrix.cxx }}
@@ -94,7 +100,7 @@ jobs:
 
     - name: Install static analyzers
       run: >-
-        sudo apt-get install build-essential cmake git clang-18 clang-19 clang-20 cppcheck -y -q
+        sudo apt-get update && sudo apt-get install build-essential cmake git clang-18 clang-19 clang-20 clang-21 clang-22 clang-tidy-18 clang-tidy-19 clang-tidy-20 clang-tidy-21 clang-tidy-22 cppcheck -y -q
 
     - name: Configure
       shell: pwsh
@@ -103,6 +109,7 @@ jobs:
         -D CMAKE_CXX_COMPILER=${{ matrix.cxx }}
         -D CMAKE_BUILD_TYPE=${{ matrix.build_type }}
         -D ENABLE_SANITIZERS=ON
+        -D "CMAKE_CXX_CLANG_TIDY=${{ matrix.tidy }};--header-filter=^${{ github.workspace }}/"
 
     - name: Build
       run: cmake --build build -j 2
@@ -125,21 +132,23 @@ jobs:
 
     strategy:
       matrix:
-        os: [ubuntu-latest]
+        os: [ubuntu-26.04]
 
         type: [shared, static]
 
-        compiler: [gcc, clang-18, clang-19, clang-20]
+        compiler: [gcc, clang-18, clang-19, clang-20, clang-21, clang-22]
 
         build_type: [Debug, Release]
 
         include:
         - { type: shared, shared: YES }
         - { type: static, shared: NO }
-        - { compiler: gcc, cc: gcc, cxx: g++ }
-        - { compiler: clang-18, cc: clang-18, cxx: clang++-18 }
-        - { compiler: clang-19, cc: clang-19, cxx: clang++-19 }
-        - { compiler: clang-20, cc: clang-20, cxx: clang++-20 }
+        - { compiler: gcc, cc: gcc, cxx: g++, tidy: clang-tidy-22 }
+        - { compiler: clang-18, cc: clang-18, cxx: clang++-18, tidy: clang-tidy-18 }
+        - { compiler: clang-19, cc: clang-19, cxx: clang++-19, tidy: clang-tidy-19 }
+        - { compiler: clang-20, cc: clang-20, cxx: clang++-20, tidy: clang-tidy-20 }
+        - { compiler: clang-21, cc: clang-21, cxx: clang++-21, tidy: clang-tidy-21 }
+        - { compiler: clang-22, cc: clang-22, cxx: clang++-22, tidy: clang-tidy-22 }
 
     runs-on: ${{ matrix.os }}
 
@@ -152,9 +161,9 @@ jobs:
         submodules: recursive
 
     - name: Install static analyzers
-      if: matrix.os == 'ubuntu-latest'
+      if: matrix.os == 'ubuntu-26.04'
       run: >-
-        sudo apt-get install build-essential cmake git clang-18 clang-19 clang-20 clang-tidy-18 clang-tidy-19 clang-tidy-20 cppcheck -y -q
+        sudo apt-get update && sudo apt-get install build-essential cmake git clang-18 clang-19 clang-20 clang-21 clang-22 clang-tidy-18 clang-tidy-19 clang-tidy-20 clang-tidy-21 clang-tidy-22 cppcheck -y -q
 
     - name: Setup MultiToolTask
       if: matrix.os == 'windows-2022'
@@ -169,6 +178,7 @@ jobs:
         -D CMAKE_C_COMPILER=${{ matrix.cc }}
         -D CMAKE_CXX_COMPILER=${{ matrix.cxx }}
         -D CMAKE_BUILD_TYPE=${{ matrix.build_type }}
+        -D "CMAKE_CXX_CLANG_TIDY=${{ matrix.tidy }};--header-filter=^${{ github.workspace }}/"
 
     - name: Setup PATH
       if: matrix.os == 'windows-2022' && matrix.type == 'shared'
@@ -187,7 +197,7 @@ jobs:
   test-arm64:
     needs: [lint]
 
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
 
     strategy:
       matrix:
@@ -219,7 +229,7 @@ jobs:
   fuzz:
     needs: [lint]
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
 
     steps:
     - uses: actions/checkout@v4
@@ -228,7 +238,7 @@ jobs:
 
     - name: Install dependencies
       run: >-
-        sudo apt-get install build-essential cmake git clang-18 cppcheck -y -q
+        sudo apt-get update && sudo apt-get install build-essential cmake git clang-18 clang-tidy-18 cppcheck -y -q
 
     - name: Configure
       shell: pwsh
@@ -237,6 +247,7 @@ jobs:
         -D CMAKE_CXX_COMPILER=clang++-18
         -D CMAKE_BUILD_TYPE=Release
         -D fast_hex_ENABLE_FUZZ=ON
+        -D "CMAKE_CXX_CLANG_TIDY=clang-tidy-18;--header-filter=^${{ github.workspace }}/"
 
     - name: Build
       run: cmake --build build -j 2
@@ -249,7 +260,7 @@ jobs:
     # Deploy docs only when builds succeed
     needs: [sanitize, test, fuzz]
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
 
     # To enable, first you have to create an orphaned gh-pages branch:
     #

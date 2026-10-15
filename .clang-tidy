@@ -1,0 +1,5 @@
+---
+# Pin the check set explicitly: clang-tidy 22 dropped clang-analyzer-* from
+# its defaults and errors out with "no checks enabled" on clean code.
+Checks: 'clang-diagnostic-*,clang-analyzer-*'
+...
