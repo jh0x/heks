@@ -12,6 +12,11 @@ if(PROJECT_IS_TOP_LEVEL)
     option(fast_hex_ENABLE_MARCH_NATIVE "Enable -march=native" ON)
     option(fast_hex_ENABLE_AVX "AVX code will be used" ON)
     option(fast_hex_ENABLE_AVX2 "AVX2 code will be used" ON)
+    option(
+        fast_hex_ENABLE_AVX512
+        "AVX-512 (BW/VL/VBMI) code will be used if the host CPU supports it"
+        ON
+    )
     option(fast_hex_ENABLE_NEON "NEON code will be used" ON)
 endif()
 

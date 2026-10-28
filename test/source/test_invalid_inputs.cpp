@@ -102,3 +102,10 @@ TEST_CASE("decodeHexVec_invalid")
     testInvalidHexDecoding<decodeHexVec>();
 }
 #endif
+
+#if defined(FAST_HEX_AVX512)
+TEST_CASE("decodeHexVec512_invalid")
+{
+    testInvalidHexDecoding<decodeHexVec512>();
+}
+#endif

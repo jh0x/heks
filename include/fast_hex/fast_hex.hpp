@@ -46,6 +46,12 @@ FAST_HEX_EXPORT void decodeHexBMI(uint8_t * FAST_HEX_RESTRICT dest, const uint8_
 FAST_HEX_EXPORT void decodeHexVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
 #endif // defined(FAST_HEX_AVX2)
 
+#if defined(FAST_HEX_AVX512)
+// AVX-512 (BW/VL/VBMI) vectorized version. len is number of dest bytes (1/2 the size of src).
+// Tails are handled with masked loads/stores, so short inputs stay fast too.
+FAST_HEX_EXPORT void decodeHexVec512(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
+#endif // defined(FAST_HEX_AVX512)
+
 // Encoders
 // Encode src bytes (e.g. "Test123") into dest hex string (e.g. "54657374313233")
 
@@ -79,6 +85,12 @@ FAST_HEX_EXPORT void encodeHexUpperVec(uint8_t * FAST_HEX_RESTRICT dest, const u
 FAST_HEX_EXPORT void encodeHex16LowerFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
 FAST_HEX_EXPORT void encodeHex16UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
 #endif // defined(FAST_HEX_AVX2)
+
+#if defined(FAST_HEX_AVX512)
+// AVX-512 (BW/VL/VBMI) vectorized version. len is number of src bytes. dest must be twice the size of src.
+FAST_HEX_EXPORT void encodeHexLowerVec512(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
+FAST_HEX_EXPORT void encodeHexUpperVec512(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
+#endif // defined(FAST_HEX_AVX512)
 
 #if defined(FAST_HEX_NEON)
 // ARM NEON optimized version

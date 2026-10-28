@@ -6,7 +6,7 @@
 #include <cstring>
 #include <string_view>
 
-#if defined(FAST_HEX_AVX2) || defined(FAST_HEX_AVX)
+#if defined(FAST_HEX_AVX512) || defined(FAST_HEX_AVX2) || defined(FAST_HEX_AVX)
 #    if defined(__GNUC__)
 #        include <immintrin.h>
 #    elif defined(_MSC_VER)
@@ -46,6 +46,8 @@
 #    define FAST_HEX_BSWAP64(x) __builtin_bswap64(x)
 #endif
 
+#define FAST_HEX_AVX512_TARGET __attribute__((target("avx512f,avx512bw,avx512vl,avx512vbmi")))
+
 #if (defined(__SIZEOF_INT128__) || defined(__INT128__))
 #    define FAST_HEX_HAS_INT128 1
 #endif
@@ -55,7 +57,7 @@
 // decodeHexLUT
 // decodeHexLUT4
 // decodeHexBMI
-// decodeHexVec
+// decodeHexVec (since reworked to decode nibbles via a pshufb delta table)
 // encodeHexImpl
 // encodeHexVecImpl
 
@@ -84,6 +86,13 @@ void encodeHexUpperVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HE
 void encodeHex16LowerFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
 void encodeHex16UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
 #endif // defined(FAST_HEX_AVX2)
+
+#if defined(FAST_HEX_AVX512)
+void decodeHexVec512(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
+
+void encodeHexLowerVec512(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
+void encodeHexUpperVec512(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
+#endif // defined(FAST_HEX_AVX512)
 
 #if defined(FAST_HEX_NEON)
 void encodeHexNeonLower(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
@@ -245,34 +254,43 @@ constexpr int8_t unhexBitManip(uint8_t x)
 
 
 #if defined(FAST_HEX_AVX2)
-__attribute__((target("avx2"))) inline __m256i unhexBitManip(const __m256i value)
+// 32 hex chars -> 16 decoded bytes, each in the low byte of a 16-bit lane.
+// The nibble is c + delta[c >> 4], where delta is -'0' for '0'-'9' (0x3_), -'A' + 10 for 'A'-'F' (0x4_)
+// and -'a' + 10 for 'a'-'f' (0x6_), so no masking is needed afterwards.
+// maddubs then combines each pair of nibbles as hi * 16 + lo.
+__attribute__((target("avx2"))) inline __m256i unhexPairs(const __m256i value)
 {
-    const __m256i _9 = _mm256_set1_epi16(9);
-    const __m256i _15 = _mm256_set1_epi16(0xf);
+    // clang-format off
+    const __m256i DELTA = _mm256_setr_epi8(
+        0, 0, 0, -0x30, -0x37, 0, -0x57, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -0x30, -0x37, 0, -0x57, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    // clang-format on
 
-    __m256i and15 = _mm256_and_si256(value, _15);
+    __m256i hi = _mm256_and_si256(_mm256_srli_epi16(value, 4), _mm256_set1_epi8(0x0F));
+    __m256i nibs = _mm256_add_epi8(value, _mm256_shuffle_epi8(DELTA, hi));
+    return _mm256_maddubs_epi16(nibs, _mm256_set1_epi16(0x0110));
+}
 
-#    ifndef NO_MADDUBS
-    __m256i sr6 = _mm256_srai_epi16(value, 6);
-    __m256i mul = _mm256_maddubs_epi16(sr6, _9); // this has a latency of 5
-#    else
-    // ... while this I think has a latency of 4, but worse throughput(?).
-    // (x >> 6) * 9 is x * 8 + x:
-    // ((x >> 6) << 3) + (x >> 6)
-    // We need & 0b11 to emulate 8-bit operations (narrowest shift is 16b) -- or a left shift
-    // (((x >> 6) & 0b11) << 3) + ((x >> 6) & 0b11)
-    // or
-    // tmp = (x >> 6) & 0b11
-    // tmp << 3 + tmp
-    // there's no carry due to the mask+shift combo, so + is |
-    // tmp << 3 | tmp
-    __m256i sr6_lo2 = _mm256_and_si256(_mm256_srli_epi16(value, 6), _mm256_set1_epi16(0b11));
-    __m256i sr6_lo2_sl3 = _mm256_slli_epi16(sr6_lo2, 3);
-    __m256i mul = _mm256_or_si256(sr6_lo2_sl3, sr6_lo2);
-#    endif
+__attribute__((target("avx2"))) inline void decodeHex32Vec(uint8_t * dest, const uint8_t * src)
+{
+    __m256i a = unhexPairs(_mm256_loadu_si256(reinterpret_cast<const __m256i *>(src)));
+    __m256i b = unhexPairs(_mm256_loadu_si256(reinterpret_cast<const __m256i *>(src + 32)));
+    __m256i packed = _mm256_packus_epi16(a, b); // a.lo b.lo a.hi b.hi
+    _mm256_storeu_si256(reinterpret_cast<__m256i *>(dest), _mm256_permute4x64_epi64(packed, 0xD8));
+}
 
-    __m256i add = _mm256_add_epi16(mul, and15);
-    return add;
+__attribute__((target("avx2"))) inline void decodeHex16Vec(uint8_t * dest, const uint8_t * src)
+{
+    __m256i pairs = unhexPairs(_mm256_loadu_si256(reinterpret_cast<const __m256i *>(src)));
+    __m128i packed = _mm_packus_epi16(_mm256_castsi256_si128(pairs), _mm256_extracti128_si256(pairs, 1));
+    _mm_storeu_si128(reinterpret_cast<__m128i *>(dest), packed);
+}
+
+__attribute__((target("avx2"))) inline void decodeHex8Vec(uint8_t * dest, const uint8_t * src)
+{
+    __m128i input = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src));
+    // unhexPairs operates within 128-bit lanes; only its low lane is used here.
+    __m128i pairs = _mm256_castsi256_si128(unhexPairs(_mm256_castsi128_si256(input)));
+    _mm_storel_epi64(reinterpret_cast<__m128i *>(dest), _mm_packus_epi16(pairs, pairs));
 }
 
 template <HexCase H>
@@ -294,20 +312,6 @@ __attribute__((target("avx2"))) inline __m256i hex(__m256i value)
     }
     else
         []() { static_assert(H != H, "Unsupported HexCase"); }();
-}
-
-// (a << 4) | b;
-// a and b must be 16-bit elements. Output is packed 8-bit elements.
-__attribute__((target("avx2"))) inline __m256i nib2byte(__m256i a1, __m256i b1, __m256i a2, __m256i b2)
-{
-    __m256i a4_1 = _mm256_slli_epi16(a1, 4);
-    __m256i a4_2 = _mm256_slli_epi16(a2, 4);
-    __m256i a4orb_1 = _mm256_or_si256(a4_1, b1);
-    __m256i a4orb_2 = _mm256_or_si256(a4_2, b2);
-    __m256i pck1 = _mm256_packus_epi16(a4orb_1, a4orb_2); // lo1 lo2 hi1 hi2
-    const int _0213 = 0b11'01'10'00;
-    __m256i pck64 = _mm256_permute4x64_epi64(pck1, _0213);
-    return pck64;
 }
 
 // a -> [a >> 4, a & 0b1111]
@@ -359,7 +363,7 @@ inline void encodeHexImpl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST
     }
 }
 
-#if defined(FAST_HEX_AVX)
+#if defined(FAST_HEX_AVX) || defined(FAST_HEX_AVX2)
 
 template <HexCase H>
 __attribute__((target("avx"))) inline void encodeHex8Fast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
@@ -381,28 +385,6 @@ __attribute__((target("avx"))) inline void encodeHex8Fast(uint8_t * FAST_HEX_RES
 #endif
 
 #if defined(FAST_HEX_AVX2)
-// len is number of src bytes
-template <HexCase H>
-__attribute__((target("avx2"))) inline void
-encodeHexVecImpl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
-{
-    const auto raw_length = static_cast<size_t>(len);
-    const __m128i * input128 = reinterpret_cast<const __m128i *>(src);
-    __m256i * output256 = reinterpret_cast<__m256i *>(dest);
-
-    size_t tailLen = raw_length % 16;
-    size_t vectLen = (raw_length - tailLen) >> 4;
-    for (size_t i = 0; i < vectLen; i++)
-    {
-        __m128i av = _mm_lddqu_si128(&input128[i]);
-        __m256i nibs = byte2nib(av);
-        __m256i hexed = hex<H>(nibs);
-        _mm256_storeu_si256(&output256[i], hexed);
-    }
-
-    encodeHexImpl<H>(dest + (vectLen << 5), src + (vectLen << 4), RawLength{tailLen});
-}
-
 template <HexCase H, Reverse R = Reverse::No>
 __attribute__((target("avx2"))) inline void encodeHex16Fast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
 {
@@ -422,7 +404,141 @@ __attribute__((target("avx2"))) inline void encodeHex16Fast(uint8_t * FAST_HEX_R
     // Store all 32 bytes (16 input → 32 hex chars)
     _mm256_storeu_si256(reinterpret_cast<__m256i *>(dest), hexed);
 }
+
+template <HexCase H>
+__attribute__((target("avx2"))) inline void encodeHex32Vec(uint8_t * dest, const uint8_t * src)
+{
+    // Reorder qwords to [q0 q2 | q1 q3] before the unpacks
+    __m256i input = _mm256_permute4x64_epi64(_mm256_loadu_si256(reinterpret_cast<const __m256i *>(src)), 0xD8);
+    const __m256i mask = _mm256_set1_epi8(0x0F);
+    __m256i hi = hex<H>(_mm256_and_si256(_mm256_srli_epi16(input, 4), mask));
+    __m256i lo = hex<H>(_mm256_and_si256(input, mask));
+    _mm256_storeu_si256(reinterpret_cast<__m256i *>(dest), _mm256_unpacklo_epi8(hi, lo));
+    _mm256_storeu_si256(reinterpret_cast<__m256i *>(dest + 32), _mm256_unpackhi_epi8(hi, lo));
+}
+
+
+// len is number of src bytes
+template <HexCase H>
+__attribute__((target("avx2"))) inline void
+encodeHexVecImpl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+{
+    auto raw_length = static_cast<size_t>(len);
+    while (raw_length >= 32)
+    {
+        encodeHex32Vec<H>(dest, src);
+        src += 32;
+        dest += 64;
+        raw_length -= 32;
+    }
+
+    if (raw_length == 0)
+        return;
+    if (static_cast<size_t>(len) >= 32)
+    {
+        // Re-encode the final full block, overalpping output already written by the loop
+        // Everything inside original buffers
+        encodeHex32Vec<H>(dest + raw_length * 2 - 64, src + raw_length - 32);
+        return;
+    }
+
+    if (raw_length >= 16)
+    {
+        encodeHex16Fast<H>(dest, src);
+        if (raw_length > 16)
+            encodeHex16Fast<H>(dest + raw_length * 2 - 32, src + raw_length - 16);
+        return;
+    }
+    if (raw_length >= 8)
+    {
+        encodeHex8Fast<H>(dest, src);
+        if (raw_length > 8)
+            encodeHex8Fast<H>(dest + raw_length * 2 - 16, src + raw_length - 8);
+        return;
+    }
+    encodeHexImpl<H>(dest, src, RawLength{raw_length});
+}
 #endif // defined(FAST_HEX_AVX2)
+
+#if defined(FAST_HEX_AVX512)
+// 32 bytes (low half of in) -> 64 hex chars
+template <HexCase H>
+FAST_HEX_AVX512_TARGET inline __m512i encodeHex32Vec512(__m512i in)
+{
+    // clang-format off
+    // Output byte j <- input byte j / 2
+    const __m512i DUP = _mm512_set_epi8(
+        31, 31, 30, 30, 29, 29, 28, 28, 27, 27, 26, 26, 25, 25, 24, 24, 23, 23, 22, 22, 21, 21, 20, 20, 19, 19, 18, 18, 17, 17, 16, 16,
+        15, 15, 14, 14, 13, 13, 12, 12, 11, 11, 10, 10, 9, 9, 8, 8, 7, 7, 6, 6, 5, 5, 4, 4, 3, 3, 2, 2, 1, 1, 0, 0);
+    const __m512i HEX_LUT_LOWER = _mm512_broadcast_i32x4(_mm_setr_epi8('0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f'));
+    const __m512i HEX_LUT_UPPER = _mm512_broadcast_i32x4(_mm_setr_epi8('0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'));
+    // clang-format on
+    // Bit offsets for each byte p of a qword: even p takes bits from 8p + 4 (high nibble),
+    // odd p takes bits from 8p (low nibble). Bits above the nibble are ignored by the lookup.
+    const __m512i NIBBLE_SHIFTS = _mm512_set1_epi64(0x38'34'28'24'18'14'08'04);
+
+    __m512i dup = _mm512_permutexvar_epi8(DUP, in);
+    __m512i nibs = _mm512_multishift_epi64_epi8(NIBBLE_SHIFTS, dup);
+    // vpermb uses the low 6 bits of each index; the 16-entry table is repeated 4 times
+    return _mm512_permutexvar_epi8(nibs, H == HexCase::Lower ? HEX_LUT_LOWER : HEX_LUT_UPPER);
+}
+
+// len is number of src bytes
+template <HexCase H>
+FAST_HEX_AVX512_TARGET inline void
+encodeHexVec512Impl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+{
+    auto raw_length = static_cast<size_t>(len);
+    if (raw_length < 32)
+    {
+        const __mmask32 in_mask = (uint32_t{1} << raw_length) - 1;
+        const __mmask64 out_mask = (uint64_t{1} << (raw_length * 2)) - 1;
+        __m512i a = _mm512_castsi256_si512(_mm256_maskz_loadu_epi8(in_mask, src));
+        _mm512_mask_storeu_epi8(dest, out_mask, encodeHex32Vec512<H>(a));
+        return;
+    }
+    while (raw_length >= 64)
+    {
+        __m512i a = _mm512_castsi256_si512(_mm256_loadu_si256(reinterpret_cast<const __m256i *>(src)));
+        __m512i b = _mm512_castsi256_si512(_mm256_loadu_si256(reinterpret_cast<const __m256i *>(src + 32)));
+        _mm512_storeu_si512(dest, encodeHex32Vec512<H>(a));
+        _mm512_storeu_si512(dest + 64, encodeHex32Vec512<H>(b));
+        src += 64;
+        dest += 128;
+        raw_length -= 64;
+    }
+    if (raw_length >= 32)
+    {
+        __m512i a = _mm512_castsi256_si512(_mm256_loadu_si256(reinterpret_cast<const __m256i *>(src)));
+        _mm512_storeu_si512(dest, encodeHex32Vec512<H>(a));
+        src += 32;
+        dest += 64;
+        raw_length -= 32;
+    }
+    if (raw_length > 0)
+    {
+        // Encode the last 32 bytes again. This overlaps output that is already written.
+        // It stays inside the buffers, unlike a masked tail.
+        __m512i a = _mm512_castsi256_si512(_mm256_loadu_si256(reinterpret_cast<const __m256i *>(src + raw_length - 32)));
+        _mm512_storeu_si512(dest + raw_length * 2 - 64, encodeHex32Vec512<H>(a));
+    }
+}
+
+// 64 hex chars -> 32 decoded bytes, each in the low byte of a 16-bit lane
+FAST_HEX_AVX512_TARGET inline __m512i unhexPairs512(__m512i value)
+{
+    // clang-format off
+    // Indexed by the low 6 bits of the char: '0'-'9' -> 0x30-0x39, 'A'-'F' -> 0x01-0x06, 'a'-'f' -> 0x21-0x26
+    const __m512i UNHEX_LUT = _mm512_set_epi8(
+        0, 0, 0, 0, 0, 0, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0,        // 0x3F-0x30
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 15, 14, 13, 12, 11, 10, 0,  // 0x2F-0x20
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,        // 0x1F-0x10
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 15, 14, 13, 12, 11, 10, 0); // 0x0F-0x00
+    // clang-format on
+    __m512i nibs = _mm512_permutexvar_epi8(value, UNHEX_LUT);
+    return _mm512_maddubs_epi16(nibs, _mm512_set1_epi16(0x0110));
+}
+#endif // defined(FAST_HEX_AVX512)
 
 #if defined(FAST_HEX_NEON)
 
@@ -630,35 +746,39 @@ decodeHexVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT
 {
     using namespace heks_detail;
     auto raw_length = static_cast<size_t>(len);
-    const __m256i A_MASK = _mm256_setr_epi8(
-        0, -1, 2, -1, 4, -1, 6, -1, 8, -1, 10, -1, 12, -1, 14, -1, 0, -1, 2, -1, 4, -1, 6, -1, 8, -1, 10, -1, 12, -1, 14, -1);
-    const __m256i B_MASK = _mm256_setr_epi8(
-        1, -1, 3, -1, 5, -1, 7, -1, 9, -1, 11, -1, 13, -1, 15, -1, 1, -1, 3, -1, 5, -1, 7, -1, 9, -1, 11, -1, 13, -1, 15, -1);
-
-    const __m256i * val3 = reinterpret_cast<const __m256i *>(src);
-    __m256i * dec256 = reinterpret_cast<__m256i *>(dest);
 
     while (raw_length >= 32)
     {
-        __m256i av1 = _mm256_loadu_si256(val3++);
-        __m256i av2 = _mm256_loadu_si256(val3++);
-        __m256i a1 = _mm256_shuffle_epi8(av1, A_MASK);
-        __m256i b1 = _mm256_shuffle_epi8(av1, B_MASK);
-        __m256i a2 = _mm256_shuffle_epi8(av2, A_MASK);
-        __m256i b2 = _mm256_shuffle_epi8(av2, B_MASK);
-
-        a1 = unhexBitManip(a1);
-        a2 = unhexBitManip(a2);
-        b1 = unhexBitManip(b1);
-        b2 = unhexBitManip(b2);
-
-        __m256i bytes = nib2byte(a1, b1, a2, b2);
-        _mm256_storeu_si256(dec256++, bytes);
+        decodeHex32Vec(dest, src);
+        src += 64;
+        dest += 32;
         raw_length -= 32;
     }
 
-    src = reinterpret_cast<const uint8_t *>(val3);
-    dest = reinterpret_cast<uint8_t *>(dec256);
+    if (raw_length == 0)
+        return;
+    if (static_cast<size_t>(len) > 32)
+    {
+        // Decode the final full block again
+        // Overlap overwrites valid output - still in the buffer
+        decodeHex32Vec(dest + raw_length - 32, src + raw_length * 2 - 64);
+        return;
+    }
+    if (raw_length >= 16)
+    {
+        decodeHex16Vec(dest, src);
+        if (raw_length > 16)
+            decodeHex16Vec(dest + raw_length - 16, src + raw_length * 2 - 32);
+        return;
+    }
+    if (raw_length >= 8)
+    {
+        decodeHex8Vec(dest, src);
+        if (raw_length > 8)
+            decodeHex8Vec(dest + raw_length - 8, src + raw_length * 2 - 16);
+        return;
+    }
+
     decodeHexBMI(dest, src, RawLength{raw_length});
 }
 
@@ -685,6 +805,67 @@ encodeHex16UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_
     heks_detail::encodeHex16Fast<heks_detail::HexCase::Upper>(dest, src);
 }
 #endif // defined(FAST_HEX_AVX2)
+
+#if defined(FAST_HEX_AVX512)
+
+// len is number or dest bytes (i.e. half of src length)
+FAST_HEX_AVX512_TARGET FAST_HEX_FUNCTION_INLINE void
+decodeHexVec512(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+{
+    using namespace heks_detail;
+    auto raw_length = static_cast<size_t>(len);
+    // clang-format off
+    // Low byte of every 16-bit lane of a, then of b
+    const __m512i EVEN_BYTES = _mm512_set_epi8(
+        126, 124, 122, 120, 118, 116, 114, 112, 110, 108, 106, 104, 102, 100, 98, 96, 94, 92, 90, 88, 86, 84, 82, 80, 78, 76, 74, 72, 70, 68, 66, 64,
+        62, 60, 58, 56, 54, 52, 50, 48, 46, 44, 42, 40, 38, 36, 34, 32, 30, 28, 26, 24, 22, 20, 18, 16, 14, 12, 10, 8, 6, 4, 2, 0);
+    // clang-format on
+
+    if (raw_length < 32)
+    {
+        const __mmask64 in_mask = (uint64_t{1} << (raw_length * 2)) - 1;
+        const __mmask32 out_mask = (uint32_t{1} << raw_length) - 1;
+        __m512i a = unhexPairs512(_mm512_maskz_loadu_epi8(in_mask, src));
+        _mm256_mask_storeu_epi8(dest, out_mask, _mm512_cvtepi16_epi8(a));
+        return;
+    }
+    while (raw_length >= 64)
+    {
+        __m512i a = unhexPairs512(_mm512_loadu_si512(src));
+        __m512i b = unhexPairs512(_mm512_loadu_si512(src + 64));
+        _mm512_storeu_si512(dest, _mm512_permutex2var_epi8(a, EVEN_BYTES, b));
+        src += 128;
+        dest += 64;
+        raw_length -= 64;
+    }
+    if (raw_length >= 32)
+    {
+        __m512i a = unhexPairs512(_mm512_loadu_si512(src));
+        _mm256_storeu_si256(reinterpret_cast<__m256i *>(dest), _mm512_cvtepi16_epi8(a));
+        src += 64;
+        dest += 32;
+        raw_length -= 32;
+    }
+    if (raw_length > 0)
+    {
+        // Decode the last 64 chars again. This overlaps output that is already written.
+        // It stays inside the buffers, unlike a masked tail.
+        __m512i a = unhexPairs512(_mm512_loadu_si512(src + raw_length * 2 - 64));
+        _mm256_storeu_si256(reinterpret_cast<__m256i *>(dest + raw_length - 32), _mm512_cvtepi16_epi8(a));
+    }
+}
+
+FAST_HEX_AVX512_TARGET FAST_HEX_FUNCTION_INLINE void
+encodeHexLowerVec512(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+{
+    heks_detail::encodeHexVec512Impl<heks_detail::HexCase::Lower>(dest, src, len);
+}
+FAST_HEX_AVX512_TARGET FAST_HEX_FUNCTION_INLINE void
+encodeHexUpperVec512(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+{
+    heks_detail::encodeHexVec512Impl<heks_detail::HexCase::Upper>(dest, src, len);
+}
+#endif // defined(FAST_HEX_AVX512)
 
 #if defined(FAST_HEX_NEON)
 
@@ -734,7 +915,9 @@ inline void encode_auto(uint8_t * FAST_HEX_RESTRICT d, const uint8_t * FAST_HEX_
 {
     constexpr auto case_type = Case::value;
 #if defined(__x86_64__) || defined(_M_X64)
-#    if defined(FAST_HEX_AVX2)
+#    if defined(FAST_HEX_AVX512)
+    heks_detail::encodeHexVec512Impl<case_type>(d, s, n);
+#    elif defined(FAST_HEX_AVX2)
     heks_detail::encodeHexVecImpl<case_type>(d, s, n);
 #    else
     heks_detail::encodeHexImpl<case_type>(d, s, n);
@@ -749,7 +932,9 @@ inline void encode_auto(uint8_t * FAST_HEX_RESTRICT d, const uint8_t * FAST_HEX_
 inline void decode_auto(uint8_t * FAST_HEX_RESTRICT d, const uint8_t * FAST_HEX_RESTRICT s, RawLength n)
 {
 #if defined(__x86_64__) || defined(_M_X64)
-#    if defined(FAST_HEX_AVX2)
+#    if defined(FAST_HEX_AVX512)
+    decodeHexVec512(d, s, n);
+#    elif defined(FAST_HEX_AVX2)
     decodeHexVec(d, s, n);
 #    elif defined(__BMI__)
     decodeHexBMI(d, s, n);

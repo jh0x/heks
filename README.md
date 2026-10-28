@@ -54,6 +54,7 @@ to `fast_hex_BUILD_SHARED_LIBS`). The following functions are provided:
 | `decodeHexLUT4`             | Similar to `decodeHexLUT`, but uses two look-up tables to avoid shifts.                        |
 | `decodeHexBMI`              | Uses bit manipulation instructions to decode the hex string by directly applying bit operations. |
 | `decodeHexVec`              | AVX2-optimized version for vectorized decoding. Can decode in parallel for better performance. |
+| `decodeHexVec512`           | AVX-512 (BW/VL/VBMI) version. Handles tails with masked loads/stores, so it is fast for short inputs too. |
 
 #### Encoding
 
@@ -61,6 +62,7 @@ to `fast_hex_BUILD_SHARED_LIBS`). The following functions are provided:
 |-----------------------------|-----------------------------------------------------------------------------------------------|
 | `encodeHexLower` / `encodeHexUpper` | Encodes bytes into a hex string. Each byte is converted into two hex characters.  |
 | `encodeHexLowerVec` / `encodeHexUpperVec`         | AVX2-optimized version for encoding.    |
+| `encodeHexLowerVec512` / `encodeHexUpperVec512`   | AVX-512 (BW/VL/VBMI) version for encoding. |
 | `encodeHexNeonLower` / `encodeHexNeonUpper`         | NEON-optimized version for encoding.    |
 | `encodeHex8LowerFast` / `encodeHex8UpperFast`| AVX-optimized version for inputs of length of exactly 8 bytes |
 | `encodeHex16LowerFast` / `encodeHex16UpperFast`| AVX2-optimized version for inputs of length of exactly 16 bytes |
@@ -68,6 +70,9 @@ to `fast_hex_BUILD_SHARED_LIBS`). The following functions are provided:
 
 You might want to pass specific flags for the target architecture (e.g. `-mavx2`). There is a convenience CMake option available
 for forcing the native architecture: `fast_hex_ENABLE_MARCH_NATIVE`.
+
+The AVX-512 functions are controlled by `fast_hex_ENABLE_AVX512`. Since AVX-512 is not available on all x86-64 CPUs,
+it is only enabled when the CPU running CMake supports AVX-512 BW/VL/VBMI (and never when cross-compiling).
 
 ### Header only library
 
@@ -78,12 +83,12 @@ In addition to the same set of functions as in case described above, the header 
 two convenience functions that attempt to make it easier to select the "best" algorithm given the target architecture:
 
 ```cpp
-// For X64 prefer: encodeHexVec, encodeHex
+// For X64 prefer: encodeHexVec512, encodeHexVec, encodeHex
 // For ARM with NEON: encodeHexNeon
 // Otherwise: encodeHex
 heks::encode_auto(dst, src, heks::RawLength{len}, heks::upper);
 
-// For X64 prefer: decodeHexVec, decodeHexBMI, decodeHexLUT4
+// For X64 prefer: decodeHexVec512, decodeHexVec, decodeHexBMI, decodeHexLUT4
 // For ARM prefer: decodeHexBMI, decodeHexLut
 // Otherwise: decodeHexLUT4
 heks::decode_auto(dst, src, heks::RawLength{len});
