@@ -1,7 +1,21 @@
 # CMake function to define a fuzz target with common settings
 function(add_fuzz_target TARGET_NAME FUZZ_SOURCE_FILE)
     add_executable(${TARGET_NAME} ${FUZZ_SOURCE_FILE})
-    target_link_libraries(${TARGET_NAME} PRIVATE fast_hex::fast_hex)
+    # Fuzz sources use fast_hex_inline.hpp, so only the headers are needed. Linking the library
+    # as well would give a second, uninstrumented definition of every function under test
+    target_link_libraries(${TARGET_NAME} PRIVATE fast_hex::headers)
+    # Fuzz with the same namespace setting the library is built with
+    if(fast_hex_USE_NAMESPACE)
+        target_compile_definitions(
+            ${TARGET_NAME}
+            PRIVATE FAST_HEX_USE_NAMESPACE=1
+        )
+    else()
+        target_compile_definitions(
+            ${TARGET_NAME}
+            PRIVATE FAST_HEX_USE_NAMESPACE=0
+        )
+    endif()
     target_compile_features(${TARGET_NAME} PRIVATE cxx_std_20)
     target_compile_options(
         ${TARGET_NAME}

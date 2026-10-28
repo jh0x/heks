@@ -6,7 +6,7 @@ include(../../cmake/project-is-top-level.cmake)
 include(../../cmake/folders.cmake)
 
 set(FUZZ_RUNTIME
-    10
+    60
     CACHE STRING
     "Number of seconds to run fuzz tests during ctest run"
 )
