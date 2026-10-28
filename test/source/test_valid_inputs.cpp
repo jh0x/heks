@@ -5,10 +5,12 @@
 #endif
 
 
+#include <algorithm>
 #include <iomanip>
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <doctest/doctest.h>
 
@@ -314,6 +316,50 @@ void testHexDecoding()
     }
 }
 
+// Compare against the scalar reference for every length up to a few vector widths, so that each
+// main loop / tail combination is exercised. Also checks nothing is written past the end of dest.
+template <auto EncodingFuncLower, auto EncodingFuncUpper, auto DecodingFunc>
+void testHexLengthSweep()
+{
+    constexpr size_t MaxLen = 300;
+    constexpr uint8_t Canary = 0xA5;
+    std::vector<uint8_t> raw(MaxLen);
+    for (size_t i = 0; i < MaxLen; ++i)
+    {
+        raw[i] = static_cast<uint8_t>(i * 131 + 7);
+    }
+
+    for (size_t len = 0; len <= MaxLen; ++len)
+    {
+        CAPTURE(len);
+        std::vector<uint8_t> expected_lower(len * 2);
+        std::vector<uint8_t> expected_upper(len * 2);
+        encodeHexLower(expected_lower.data(), raw.data(), RawLength{len});
+        encodeHexUpper(expected_upper.data(), raw.data(), RawLength{len});
+
+        std::vector<uint8_t> out(len * 2 + 1, Canary);
+        EncodingFuncLower(out.data(), raw.data(), RawLength{len});
+        REQUIRE(std::equal(expected_lower.begin(), expected_lower.end(), out.begin()));
+        REQUIRE(out[len * 2] == Canary);
+
+        std::fill(out.begin(), out.end(), Canary);
+        EncodingFuncUpper(out.data(), raw.data(), RawLength{len});
+        REQUIRE(std::equal(expected_upper.begin(), expected_upper.end(), out.begin()));
+        REQUIRE(out[len * 2] == Canary);
+
+        // Mixed case input
+        std::vector<uint8_t> mixed(expected_lower);
+        for (size_t i = 0; i < mixed.size(); i += 3)
+        {
+            mixed[i] = expected_upper[i];
+        }
+        std::vector<uint8_t> decoded(len + 1, Canary);
+        DecodingFunc(decoded.data(), mixed.data(), RawLength{len});
+        REQUIRE(std::equal(raw.begin(), raw.begin() + static_cast<std::ptrdiff_t>(len), decoded.begin()));
+        REQUIRE(decoded[len] == Canary);
+    }
+}
+
 TEST_CASE("encodeHex")
 {
     testHexEncoding<encodeHexLower, encodeHexUpper>();
@@ -327,6 +373,25 @@ TEST_CASE("encodeHexVec")
 TEST_CASE("decodeHexVec_valid")
 {
     testHexDecoding<decodeHexVec>();
+}
+TEST_CASE("hexVec_length_sweep")
+{
+    testHexLengthSweep<encodeHexLowerVec, encodeHexUpperVec, decodeHexVec>();
+}
+#endif
+
+#if defined(FAST_HEX_AVX512)
+TEST_CASE("encodeHexVec512")
+{
+    testHexEncoding<encodeHexLowerVec512, encodeHexUpperVec512>();
+}
+TEST_CASE("decodeHexVec512_valid")
+{
+    testHexDecoding<decodeHexVec512>();
+}
+TEST_CASE("hexVec512_length_sweep")
+{
+    testHexLengthSweep<encodeHexLowerVec512, encodeHexUpperVec512, decodeHexVec512>();
 }
 #endif
 

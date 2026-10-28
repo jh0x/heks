@@ -34,6 +34,31 @@ std::vector<uint8_t> createHexData(size_t binarySize)
     return hex;
 }
 
+template <auto Func, bool Encode>
+void BM_hex_Runtime(benchmark::State & state)
+{
+    const auto size = static_cast<size_t>(state.range(0));
+    const auto offset = static_cast<size_t>(state.range(1));
+    auto data = Encode ? createBinaryData(size) : createHexData(size);
+    std::vector<uint8_t> input(data.size() + 128);
+    std::vector<uint8_t> output((Encode ? size * 2 : size) + 128);
+    auto * src = reinterpret_cast<uint8_t *>((reinterpret_cast<uintptr_t>(input.data()) + 63) & ~uintptr_t{63}) + offset;
+    auto * dst = reinterpret_cast<uint8_t *>((reinterpret_cast<uintptr_t>(output.data()) + 63) & ~uintptr_t{63}) + offset;
+    std::memcpy(src, data.data(), data.size());
+    for (auto _ : state)
+    {
+        Func(dst, src, RawLength{size});
+        benchmark::DoNotOptimize(dst);
+        benchmark::ClobberMemory();
+    }
+    state.SetBytesProcessed(state.iterations() * static_cast<int64_t>(size));
+}
+
+#define DEFINE_RUNTIME_BENCHMARK(func_name, encode) \
+    BENCHMARK_TEMPLATE(BM_hex_Runtime, func_name, encode) \
+        ->ArgsProduct({{8, 15, 16, 31, 32, 33, 63, 64, 65, 1024, 1024 * 1024}, {0, 1}}) \
+        ->ArgNames({"bytes", "offset"});
+
 template <typename T>
 std::vector<T> createInputData(size_t count, T)
 {
@@ -172,7 +197,18 @@ DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec, 32, 32B)
 DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec, 64, 64B)
 DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec, 1024, 1KB)
 DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec, 1024 * 1024, 1MB)
+DEFINE_RUNTIME_BENCHMARK(encodeHexLowerVec, true)
 #endif // defined(FAST_HEX_AVX2)
+
+#if defined(FAST_HEX_AVX512)
+DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec512, 8, 8B)
+DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec512, 16, 16B)
+DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec512, 32, 32B)
+DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec512, 64, 64B)
+DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec512, 1024, 1KB)
+DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec512, 1024 * 1024, 1MB)
+DEFINE_RUNTIME_BENCHMARK(encodeHexLowerVec512, true)
+#endif // defined(FAST_HEX_AVX512)
 
 #if defined(FAST_HEX_NEON)
 DEFINE_ENCODE_BENCHMARK(encodeHexNeonLower, 8, 8B)
@@ -215,7 +251,18 @@ DEFINE_DECODE_BENCHMARK(decodeHexVec, 32, 32B)
 DEFINE_DECODE_BENCHMARK(decodeHexVec, 64, 64B)
 DEFINE_DECODE_BENCHMARK(decodeHexVec, 1024, 1KB)
 DEFINE_DECODE_BENCHMARK(decodeHexVec, 1024 * 1024, 1MB)
+DEFINE_RUNTIME_BENCHMARK(decodeHexVec, false)
 #endif // defined(FAST_HEX_AVX2)
+
+#if defined(FAST_HEX_AVX512)
+DEFINE_DECODE_BENCHMARK(decodeHexVec512, 8, 8B)
+DEFINE_DECODE_BENCHMARK(decodeHexVec512, 16, 16B)
+DEFINE_DECODE_BENCHMARK(decodeHexVec512, 32, 32B)
+DEFINE_DECODE_BENCHMARK(decodeHexVec512, 64, 64B)
+DEFINE_DECODE_BENCHMARK(decodeHexVec512, 1024, 1KB)
+DEFINE_DECODE_BENCHMARK(decodeHexVec512, 1024 * 1024, 1MB)
+DEFINE_RUNTIME_BENCHMARK(decodeHexVec512, false)
+#endif // defined(FAST_HEX_AVX512)
 
 #ifndef FAST_HEX_STATIC_SHARED_LIBRARY
 DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral_naive, uint64_t, 1, 1_uint64)
