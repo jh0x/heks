@@ -52,15 +52,17 @@ to `fast_hex_BUILD_SHARED_LIBS`). The following functions are provided:
 |-----------------------------|-----------------------------------------------------------------------------------------------|
 | `decodeHexLUT`              | Decodes hex string using a scalar look-up table. Requires a shift for decoding two chars at a time. |
 | `decodeHexLUT4`             | Similar to `decodeHexLUT`, but uses two look-up tables to avoid shifts.                        |
-| `decodeHexBMI`              | Uses bit manipulation instructions to decode the hex string by directly applying bit operations. |
+| `decodeHexBMI`              | Scalar version that computes each nibble with bit operations instead of a lookup table. Plain C++, it does not need the BMI instruction set. |
+| `decodeHexAuto`             | Picks the fastest of the decoders below that the library was built with and the CPU supports, checked at runtime. Always available. |
 | `decodeHexVec`              | AVX2-optimized version for vectorized decoding. Can decode in parallel for better performance. |
-| `decodeHexVec512`           | AVX-512 (BW/VL/VBMI) version. Handles tails with masked loads/stores, so it is fast for short inputs too. |
+| `decodeHexVec512`           | AVX-512 (BW/VL/VBMI) version. Lengths under 32 use masked loads/stores and longer inputs end with an overlapping full block, so there is no scalar tail. |
 
 #### Encoding
 
 | Function                    | Description                                                                                   |
 |-----------------------------|-----------------------------------------------------------------------------------------------|
 | `encodeHexLower` / `encodeHexUpper` | Encodes bytes into a hex string. Each byte is converted into two hex characters.  |
+| `encodeHexLowerAuto` / `encodeHexUpperAuto` | Picks the fastest of the encoders below that the library was built with and the CPU supports, checked at runtime. Always available. |
 | `encodeHexLowerVec` / `encodeHexUpperVec`         | AVX2-optimized version for encoding.    |
 | `encodeHexLowerVec512` / `encodeHexUpperVec512`   | AVX-512 (BW/VL/VBMI) version for encoding. |
 | `encodeHexNeonLower` / `encodeHexNeonUpper`         | NEON-optimized version for encoding.    |
@@ -68,11 +70,20 @@ to `fast_hex_BUILD_SHARED_LIBS`). The following functions are provided:
 | `encodeHex16LowerFast` / `encodeHex16UpperFast`| AVX2-optimized version for inputs of length of exactly 16 bytes |
 | `encodeHex8LowerNeon` / `encodeHex8UpperNeon`| NEON-optimized version for inputs of length of exactly 8 bytes |
 
-You might want to pass specific flags for the target architecture (e.g. `-mavx2`). There is a convenience CMake option available
-for forcing the native architecture: `fast_hex_ENABLE_MARCH_NATIVE`.
+On x86-64 with GCC or Clang all the AVX/AVX2/AVX-512 functions are always compiled in, each with its own
+target attribute, so no `-mavx*` flags or options are needed and the rest of the library runs on any x86-64 CPU.
+The `Auto` functions pick the path at runtime. Calling a SIMD function directly (including `encode_integral8`,
+`encode_integral16`, `encode_integral2x8` and `decode_integral8`) on a CPU without its instruction set crashes.
+AVX-512 here means AVX-512 BW/VL/VBMI. MSVC builds and 32-bit x86 builds only get the scalar functions.
 
-The AVX-512 functions are controlled by `fast_hex_ENABLE_AVX512`. Since AVX-512 is not available on all x86-64 CPUs,
-it is only enabled when the CPU running CMake supports AVX-512 BW/VL/VBMI (and never when cross-compiling).
+To leave a path out (e.g. for a toolchain without the AVX-512 VBMI intrinsics) define `FAST_HEX_NO_AVX`,
+`FAST_HEX_NO_AVX2` or `FAST_HEX_NO_AVX512`. These replace the old `fast_hex_ENABLE_AVX`/`fast_hex_ENABLE_AVX2`
+CMake options. Defining `FAST_HEX_AVX512=0` does not work, as only the `NO_` macros are checked. With the
+static/shared library the macro has to be defined both when building the library and in the code that includes
+`fast_hex.hpp`, otherwise the header declares functions the library does not have.
+
+`fast_hex_ENABLE_MARCH_NATIVE` (off by default) builds everything for the CPU of the build machine,
+so the result may not run on other CPUs.
 
 ### Header only library
 
@@ -80,7 +91,8 @@ It might be preferred if one wishes to give compiler more potential for optimiza
 the full visibility into the function declarations.
 
 In addition to the same set of functions as in case described above, the header only library provides
-two convenience functions that attempt to make it easier to select the "best" algorithm given the target architecture:
+two convenience functions that attempt to make it easier to select the "best" algorithm given the target architecture.
+On x86-64 they pick, at runtime, the fastest path the CPU supports:
 
 ```cpp
 // For X64 prefer: encodeHexVec512, encodeHexVec, encodeHex
@@ -112,6 +124,14 @@ Also the following functions are provided as header only:
 | `encode_integral8` (NEON) | NEON-optimized encoder for 64-bit integers. Uses NEON fast 8-byte encoding routine (`encodeHexNeon8_impl`) and reverses bytes at runtime if needed depending on host endianness. |
 | `encode_integral16` (AVX2) | AVX2-optimized encoder for 128-bit integral types. Converts a full 16-byte block using `encodeHex16Fast` routine with an appropriate shuffle mask. |
 | `encode_integral2x8` (AVX2) | AVX2-optimized function for encoding two consecutive 64-bit integers (2×8 bytes = 16 bytes) in one pass. Treats the pair as a contiguous 16-byte block and uses `encodeHex16Fast` routine with an appropriate shuffle mask. |
+
+The x86 SIMD functions (`Vec`, `Fast` and the AVX integral helpers) carry a target attribute, so the compiler only
+inlines them into code built for that instruction set: with `-mavx2` or `-march=x86-64-v3`, or inside a function
+marked `__attribute__((target("avx2")))` (ClickHouse wraps its callers in `#pragma clang attribute push` for this).
+Called from code built with the default flags, each one is a real function call.
+
+The `Auto` functions check the CPU on every call. That costs little, but for many short inputs it is faster to check
+once (e.g. with `__builtin_cpu_supports`) and run the whole loop in a function built for AVX2.
 
 ## How to develop?
 
@@ -226,6 +246,8 @@ Typical variables you might want to tweak:
 
 - `fast_hex_ENABLE_FUZZ` - whether to build fuzzing tests in `test/fuzz`.
 - `fast_hex_ENABLE_BENCHMARK` - whether to build benchmarks in `test/benchmark`.
+- `fast_hex_ENABLE_MARCH_NATIVE` - build everything for the CPU of the build machine. It used to be on by default,
+  so turn it on when comparing benchmark results with older builds.
 
 [1]: https://cmake.org/cmake/help/latest/manual/cmake-presets.7.html
 [2]: https://cmake.org/download/

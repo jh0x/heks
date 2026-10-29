@@ -1,6 +1,8 @@
 // Inline header so the code under test is compiled here with the sanitizer and coverage instrumentation
 #include "fast_hex/fast_hex_inline.hpp"
 
+#include "../cpu_features.hpp"
+
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -15,6 +17,12 @@ using namespace heks;
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t * Data, size_t Size)
 {
+#if defined(FAST_HEX_AVX2)
+    static const bool has_avx2 = cpuHasAvx2();
+#endif
+#if defined(FAST_HEX_AVX512)
+    static const bool has_avx512 = cpuHasAvx512();
+#endif
     const std::size_t encoded_size = 2 * Size;
     const std::size_t decoded_size = Size;
 
@@ -55,10 +63,12 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * Data, size_t Size)
         decode(encoded, decodeHexLUT4);
         decode(encoded, decodeHexBMI);
 #if defined(FAST_HEX_AVX2)
-        decode(encoded, decodeHexVec);
+        if (has_avx2)
+            decode(encoded, decodeHexVec);
 #endif
 #if defined(FAST_HEX_AVX512)
-        decode(encoded, decodeHexVec512);
+        if (has_avx512)
+            decode(encoded, decodeHexVec512);
 #endif
     };
 
@@ -75,23 +85,34 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * Data, size_t Size)
         decode(encoded, decodeHexLUT);
         decode(encoded, decodeHexLUT4);
 #    if defined(FAST_HEX_AVX2)
-        decode(encoded, decodeHexVec);
+        if (has_avx2)
+            decode(encoded, decodeHexVec);
 #    endif
 #    if defined(FAST_HEX_AVX512)
-        decode(encoded, decodeHexVec512);
+        if (has_avx512)
+            decode(encoded, decodeHexVec512);
 #    endif
     };
 #endif
 
     test_encode_scalar(encodeHexLower, expected_lower);
     test_encode_scalar(encodeHexUpper, expected_upper);
+    // Whichever path the CPU gets. Always compiled in, unlike test_encode_vec
+    test_encode_scalar(encodeHexLowerAuto, expected_lower);
+    test_encode_scalar(encodeHexUpperAuto, expected_upper);
 #if defined(FAST_HEX_AVX2)
-    test_encode_vec(encodeHexLowerVec, expected_lower);
-    test_encode_vec(encodeHexUpperVec, expected_upper);
+    if (has_avx2)
+    {
+        test_encode_vec(encodeHexLowerVec, expected_lower);
+        test_encode_vec(encodeHexUpperVec, expected_upper);
+    }
 #endif
 #if defined(FAST_HEX_AVX512)
-    test_encode_vec(encodeHexLowerVec512, expected_lower);
-    test_encode_vec(encodeHexUpperVec512, expected_upper);
+    if (has_avx512)
+    {
+        test_encode_vec(encodeHexLowerVec512, expected_lower);
+        test_encode_vec(encodeHexUpperVec512, expected_upper);
+    }
 #endif
 #if defined(FAST_HEX_NEON)
     test_encode_vec(encodeHexNeonLower, expected_lower);

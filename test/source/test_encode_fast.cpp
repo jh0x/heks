@@ -1,5 +1,7 @@
 #include "fast_hex/fast_hex.hpp"
 
+#include "../cpu_features.hpp"
+
 #include <cstring>
 #include <string>
 #include <string_view>
@@ -112,7 +114,7 @@ void run_tests_unaligned(const std::vector<TestCase> & test_cases, LowerFunc low
 TEST_SUITE("encodeHexFast")
 {
 #if defined(FAST_HEX_AVX)
-    TEST_CASE("encodeHex8 AVX2 Fast")
+    TEST_CASE("encodeHex8 AVX Fast" * doctest::skip(!cpuHasAvx()))
     {
         run_tests_aligned<8>(test_cases_8, encodeHex8LowerFast, encodeHex8UpperFast);
         run_tests_unaligned<8, 1>(test_cases_8, encodeHex8LowerFast, encodeHex8UpperFast);
@@ -125,7 +127,7 @@ TEST_SUITE("encodeHexFast")
     }
 #endif
 #if defined(FAST_HEX_AVX2)
-    TEST_CASE("encodeHex16 AVX2 Fast")
+    TEST_CASE("encodeHex16 AVX2 Fast" * doctest::skip(!cpuHasAvx2()))
     {
         run_tests_aligned<16>(test_cases_16, encodeHex16LowerFast, encodeHex16UpperFast);
         run_tests_unaligned<16, 1>(test_cases_16, encodeHex16LowerFast, encodeHex16UpperFast);

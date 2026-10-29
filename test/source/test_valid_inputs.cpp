@@ -3,7 +3,7 @@
 #else
 #    include "fast_hex/fast_hex_inline.hpp"
 #endif
-
+#include "../cpu_features.hpp"
 
 #include <algorithm>
 #include <iomanip>
@@ -366,30 +366,30 @@ TEST_CASE("encodeHex")
 }
 
 #if defined(FAST_HEX_AVX2)
-TEST_CASE("encodeHexVec")
+TEST_CASE("encodeHexVec" * doctest::skip(!cpuHasAvx2()))
 {
     testHexEncoding<encodeHexLowerVec, encodeHexUpperVec>();
 }
-TEST_CASE("decodeHexVec_valid")
+TEST_CASE("decodeHexVec_valid" * doctest::skip(!cpuHasAvx2()))
 {
     testHexDecoding<decodeHexVec>();
 }
-TEST_CASE("hexVec_length_sweep")
+TEST_CASE("hexVec_length_sweep" * doctest::skip(!cpuHasAvx2()))
 {
     testHexLengthSweep<encodeHexLowerVec, encodeHexUpperVec, decodeHexVec>();
 }
 #endif
 
 #if defined(FAST_HEX_AVX512)
-TEST_CASE("encodeHexVec512")
+TEST_CASE("encodeHexVec512" * doctest::skip(!cpuHasAvx512()))
 {
     testHexEncoding<encodeHexLowerVec512, encodeHexUpperVec512>();
 }
-TEST_CASE("decodeHexVec512_valid")
+TEST_CASE("decodeHexVec512_valid" * doctest::skip(!cpuHasAvx512()))
 {
     testHexDecoding<decodeHexVec512>();
 }
-TEST_CASE("hexVec512_length_sweep")
+TEST_CASE("hexVec512_length_sweep" * doctest::skip(!cpuHasAvx512()))
 {
     testHexLengthSweep<encodeHexLowerVec512, encodeHexUpperVec512, decodeHexVec512>();
 }
@@ -416,6 +416,16 @@ TEST_CASE("encode_auto_invalid")
     testHexEncoding<el, eu>();
 }
 #endif
+
+TEST_CASE("encodeHexAuto")
+{
+    testHexEncoding<encodeHexLowerAuto, encodeHexUpperAuto>();
+}
+
+TEST_CASE("decodeHexAuto_valid")
+{
+    testHexDecoding<decodeHexAuto>();
+}
 
 
 TEST_CASE("decodeHexLUT_valid")

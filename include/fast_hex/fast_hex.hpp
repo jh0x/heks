@@ -21,6 +21,21 @@
 #    define FAST_HEX_NAMESPACE_CLOSE
 #endif
 
+// With GCC/Clang on x86-64 all the SIMD code is compiled in: each function has its own target
+// attribute and the Auto functions check the CPU at runtime. MSVC has no target attributes.
+// Define FAST_HEX_NO_AVX, FAST_HEX_NO_AVX2 or FAST_HEX_NO_AVX512 to leave that code out.
+#if defined(__GNUC__) && defined(__x86_64__)
+#    if !defined(FAST_HEX_AVX) && !defined(FAST_HEX_NO_AVX)
+#        define FAST_HEX_AVX 1
+#    endif
+#    if !defined(FAST_HEX_AVX2) && !defined(FAST_HEX_NO_AVX2)
+#        define FAST_HEX_AVX2 1
+#    endif
+#    if !defined(FAST_HEX_AVX512) && !defined(FAST_HEX_NO_AVX512)
+#        define FAST_HEX_AVX512 1
+#    endif
+#endif
+
 FAST_HEX_NAMESPACE_OPEN
 
 // Decoders
@@ -37,9 +52,14 @@ FAST_HEX_EXPORT void decodeHexLUT(uint8_t * FAST_HEX_RESTRICT dest, const uint8_
 // [0xAB, 0xCD] -> [a = 0xA, b = 0xB] -> dest = a | b = 0xAB ...
 FAST_HEX_EXPORT void decodeHexLUT4(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
 
-// Decodes hexadecimal pairs using bit manipulation instructions to extract and combine the nibbles.
+// Scalar version that computes each nibble with bit manipulation instead of a lookup table.
+// Plain C++: "BMI" stands for bit manipulation, the BMI instruction set is not needed.
 // [0xAB, 0xCD] -> 0xAB ... by directly applying bit manipulation to extract each nibble
 FAST_HEX_EXPORT void decodeHexBMI(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
+
+// Picks the fastest decoder compiled into the library that the CPU supports (checked at runtime, on each call).
+// Always available, so callers don't need to know which instruction sets the library was built with.
+FAST_HEX_EXPORT void decodeHexAuto(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
 
 #if defined(FAST_HEX_AVX2)
 // Optimal AVX2 vectorized version. len is number of dest bytes (1/2 the size of src).
@@ -48,7 +68,7 @@ FAST_HEX_EXPORT void decodeHexVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_
 
 #if defined(FAST_HEX_AVX512)
 // AVX-512 (BW/VL/VBMI) vectorized version. len is number of dest bytes (1/2 the size of src).
-// Tails are handled with masked loads/stores, so short inputs stay fast too.
+// Lengths under 32 use masked loads/stores; longer inputs end with an overlapping full block.
 FAST_HEX_EXPORT void decodeHexVec512(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
 #endif // defined(FAST_HEX_AVX512)
 
@@ -60,6 +80,10 @@ FAST_HEX_EXPORT void decodeHexVec512(uint8_t * FAST_HEX_RESTRICT dest, const uin
 //                 [hi = 0xC, lo = 0xD] -> [dest[2] = 'C', dest[3] = 'D']
 FAST_HEX_EXPORT void encodeHexLower(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
 FAST_HEX_EXPORT void encodeHexUpper(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
+
+// Picks the fastest encoder compiled into the library that the CPU supports (checked at runtime, on each call)
+FAST_HEX_EXPORT void encodeHexLowerAuto(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
+FAST_HEX_EXPORT void encodeHexUpperAuto(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
 
 
 #if defined(FAST_HEX_AVX)

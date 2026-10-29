@@ -20,6 +20,16 @@ install(
     COMPONENT fast_hex_Development
 )
 
+install(
+    TARGETS fast_hex_headers
+    EXPORT fast_hexTargets
+    COMPONENT
+    fast_hex_Development
+    INCLUDES #
+    DESTINATION
+        "${CMAKE_INSTALL_INCLUDEDIR}"
+)
+
 # Install library targets and full headers only if building libraries
 if(fast_hex_BUILD_LIBS)
     install(
@@ -50,41 +60,40 @@ if(fast_hex_BUILD_LIBS)
     )
 endif()
 
-if(fast_hex_BUILD_LIBS)
-    write_basic_package_version_file(
-        "${package}ConfigVersion.cmake"
-        COMPATIBILITY SameMajorVersion
-    )
+# The package config is installed for header-only installs too, as it provides fast_hex::headers
+write_basic_package_version_file(
+    "${package}ConfigVersion.cmake"
+    COMPATIBILITY SameMajorVersion
+)
 
-    # Allow package maintainers to freely override the path for the configs
-    set(fast_hex_INSTALL_CMAKEDIR
-        "${CMAKE_INSTALL_LIBDIR}/cmake/${package}"
-        CACHE STRING
-        "CMake package config location relative to the install prefix"
-    )
-    set_property(CACHE fast_hex_INSTALL_CMAKEDIR PROPERTY TYPE PATH)
-    mark_as_advanced(fast_hex_INSTALL_CMAKEDIR)
+# Allow package maintainers to freely override the path for the configs
+set(fast_hex_INSTALL_CMAKEDIR
+    "${CMAKE_INSTALL_LIBDIR}/cmake/${package}"
+    CACHE STRING
+    "CMake package config location relative to the install prefix"
+)
+set_property(CACHE fast_hex_INSTALL_CMAKEDIR PROPERTY TYPE PATH)
+mark_as_advanced(fast_hex_INSTALL_CMAKEDIR)
 
-    install(
-        FILES cmake/install-config.cmake
-        DESTINATION "${fast_hex_INSTALL_CMAKEDIR}"
-        RENAME "${package}Config.cmake"
-        COMPONENT fast_hex_Development
-    )
+install(
+    FILES cmake/install-config.cmake
+    DESTINATION "${fast_hex_INSTALL_CMAKEDIR}"
+    RENAME "${package}Config.cmake"
+    COMPONENT fast_hex_Development
+)
 
-    install(
-        FILES "${PROJECT_BINARY_DIR}/${package}ConfigVersion.cmake"
-        DESTINATION "${fast_hex_INSTALL_CMAKEDIR}"
-        COMPONENT fast_hex_Development
-    )
+install(
+    FILES "${PROJECT_BINARY_DIR}/${package}ConfigVersion.cmake"
+    DESTINATION "${fast_hex_INSTALL_CMAKEDIR}"
+    COMPONENT fast_hex_Development
+)
 
-    install(
-        EXPORT fast_hexTargets
-        NAMESPACE fast_hex::
-        DESTINATION "${fast_hex_INSTALL_CMAKEDIR}"
-        COMPONENT fast_hex_Development
-    )
-endif()
+install(
+    EXPORT fast_hexTargets
+    NAMESPACE fast_hex::
+    DESTINATION "${fast_hex_INSTALL_CMAKEDIR}"
+    COMPONENT fast_hex_Development
+)
 
 if(PROJECT_IS_TOP_LEVEL)
     include(CPack)

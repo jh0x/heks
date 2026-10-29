@@ -1,6 +1,8 @@
 // Inline header so the code under test is compiled here with the sanitizer and coverage instrumentation
 #include "fast_hex/fast_hex_inline.hpp"
 
+#include "../cpu_features.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -50,10 +52,15 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * Data, size_t Size)
     decode(decodeHexLUT4);
     decode(decodeHexBMI);
 #if defined(FAST_HEX_AVX2)
-    decode(decodeHexVec);
+    static const bool has_avx2 = cpuHasAvx2();
+    if (has_avx2)
+        decode(decodeHexVec);
 #endif
 #if defined(FAST_HEX_AVX512)
-    decode(decodeHexVec512);
+    static const bool has_avx512 = cpuHasAvx512();
+    if (has_avx512)
+        decode(decodeHexVec512);
 #endif
+    decode(decodeHexAuto);
     return 0;
 }

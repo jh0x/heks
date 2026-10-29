@@ -1,5 +1,7 @@
 #include "fast_hex/fast_hex_inline.hpp"
 
+#include "../cpu_features.hpp"
+
 #include <cstdint>
 #include <cstring>
 #include <string>
@@ -165,18 +167,23 @@ TEST_SUITE("encode_integral")
         run_encode_integral_test([](auto dst, auto input, auto c) { encode_integral_naive(dst, input, c); }, 32, test_cases16);
     }
 #endif
-#if defined(FAST_HEX_AVX) || defined(FAST_HEX_NEON)
+#if defined(FAST_HEX_AVX)
+    TEST_CASE("encode_integral 8" * doctest::skip(!cpuHasAvx()))
+    {
+        run_encode_integral_test([](auto dst, auto input, auto c) { encode_integral8(dst, input, c); }, 16, test_cases8);
+    }
+#elif defined(FAST_HEX_NEON)
     TEST_CASE("encode_integral 8")
     {
         run_encode_integral_test([](auto dst, auto input, auto c) { encode_integral8(dst, input, c); }, 16, test_cases8);
     }
-#endif // defined(FAST_HEX_AVX)
+#endif
 #if defined(FAST_HEX_AVX2)
-    TEST_CASE("encode_integral 16")
+    TEST_CASE("encode_integral 16" * doctest::skip(!cpuHasAvx2()))
     {
         run_encode_integral_test([](auto dst, auto input, auto c) { encode_integral16(dst, input, c); }, 32, test_cases16);
     }
-    TEST_CASE("encode_integral 2x8")
+    TEST_CASE("encode_integral 2x8" * doctest::skip(!cpuHasAvx2()))
     {
         constexpr auto OutLength = 32;
         for (size_t i = 0; i < std::size(test_cases2x8); i++)
@@ -258,7 +265,7 @@ TEST_SUITE("decode_integral")
         run_decode_integral_test(decode_integral_naive<uint64_t>, test_cases8);
     }
 #if defined(FAST_HEX_AVX)
-    TEST_CASE("decode_integral 8 AVX")
+    TEST_CASE("decode_integral 8 AVX" * doctest::skip(!cpuHasAvx()))
     {
         run_decode_integral_test(decode_integral8, test_cases8);
     }

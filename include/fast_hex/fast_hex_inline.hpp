@@ -6,6 +6,21 @@
 #include <cstring>
 #include <string_view>
 
+// With GCC/Clang on x86-64 all the SIMD code is compiled in: each function has its own target
+// attribute and the Auto functions check the CPU at runtime. MSVC has no target attributes.
+// Define FAST_HEX_NO_AVX, FAST_HEX_NO_AVX2 or FAST_HEX_NO_AVX512 to leave that code out.
+#if defined(__GNUC__) && defined(__x86_64__)
+#    if !defined(FAST_HEX_AVX) && !defined(FAST_HEX_NO_AVX)
+#        define FAST_HEX_AVX 1
+#    endif
+#    if !defined(FAST_HEX_AVX2) && !defined(FAST_HEX_NO_AVX2)
+#        define FAST_HEX_AVX2 1
+#    endif
+#    if !defined(FAST_HEX_AVX512) && !defined(FAST_HEX_NO_AVX512)
+#        define FAST_HEX_AVX512 1
+#    endif
+#endif
+
 #if defined(FAST_HEX_AVX512) || defined(FAST_HEX_AVX2) || defined(FAST_HEX_AVX)
 #    if defined(__GNUC__)
 #        include <immintrin.h>
@@ -72,6 +87,10 @@ void decodeHexBMI(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RES
 
 void encodeHexLower(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
 void encodeHexUpper(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
+
+void decodeHexAuto(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
+void encodeHexLowerAuto(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
+void encodeHexUpperAuto(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
 
 #if defined(FAST_HEX_AVX)
 void encodeHex8LowerFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
@@ -517,8 +536,8 @@ encodeHexVec512Impl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_R
     }
     if (raw_length > 0)
     {
-        // Encode the last 32 bytes again. This overlaps output that is already written.
-        // It stays inside the buffers, unlike a masked tail.
+        // Encode the last 32 bytes again with a plain load/store. This overlaps output that is already
+        // written, but stays inside the buffers.
         __m512i a = _mm512_castsi256_si512(_mm256_loadu_si256(reinterpret_cast<const __m256i *>(src + raw_length - 32)));
         _mm512_storeu_si512(dest + raw_length * 2 - 64, encodeHex32Vec512<H>(a));
     }
@@ -663,6 +682,27 @@ void encodeHexNeon16_impl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST
 }
 
 #endif // FAST_HEX_NEON
+
+// Whether the CPU running the code can execute the AVX2 / AVX-512 functions that are compiled in.
+// Checked on every call, which is a single load: the compiler runtime fills the feature bits in from
+// an early constructor. Before that they read as 0, so a call from a very early constructor gets the
+// scalar code. A function-local static would add a guard check to every call.
+// No shortcut for __AVX2__ etc.: these are inline, so their definition must not depend on per-file
+// flags (the linker keeps one copy for files built with and without them).
+#if defined(FAST_HEX_AVX2)
+inline bool cpuHasAvx2()
+{
+    return __builtin_cpu_supports("avx2") != 0;
+}
+#endif // defined(FAST_HEX_AVX2)
+
+#if defined(FAST_HEX_AVX512)
+inline bool cpuHasAvx512()
+{
+    return __builtin_cpu_supports("avx512f") && __builtin_cpu_supports("avx512bw") && __builtin_cpu_supports("avx512vl")
+        && __builtin_cpu_supports("avx512vbmi");
+}
+#endif // defined(FAST_HEX_AVX512)
 
 } // namespace heks_detail
 
@@ -848,8 +888,8 @@ decodeHexVec512(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTR
     }
     if (raw_length > 0)
     {
-        // Decode the last 64 chars again. This overlaps output that is already written.
-        // It stays inside the buffers, unlike a masked tail.
+        // Decode the last 64 chars again with a plain load/store. This overlaps output that is already
+        // written, but stays inside the buffers.
         __m512i a = unhexPairs512(_mm512_loadu_si512(src + raw_length * 2 - 64));
         _mm256_storeu_si256(reinterpret_cast<__m256i *>(dest + raw_length - 32), _mm512_cvtepi16_epi8(a));
     }
@@ -910,18 +950,27 @@ struct lower_t
 inline constexpr upper_t upper{};
 inline constexpr lower_t lower{};
 
+// The x86-64 paths are picked at runtime from those compiled in, so the CPU only needs what it runs
 template <class Case>
 inline void encode_auto(uint8_t * FAST_HEX_RESTRICT d, const uint8_t * FAST_HEX_RESTRICT s, RawLength n, Case)
 {
     constexpr auto case_type = Case::value;
 #if defined(__x86_64__) || defined(_M_X64)
 #    if defined(FAST_HEX_AVX512)
-    heks_detail::encodeHexVec512Impl<case_type>(d, s, n);
-#    elif defined(FAST_HEX_AVX2)
-    heks_detail::encodeHexVecImpl<case_type>(d, s, n);
-#    else
-    heks_detail::encodeHexImpl<case_type>(d, s, n);
+    if (heks_detail::cpuHasAvx512())
+    {
+        heks_detail::encodeHexVec512Impl<case_type>(d, s, n);
+        return;
+    }
 #    endif
+#    if defined(FAST_HEX_AVX2)
+    if (heks_detail::cpuHasAvx2())
+    {
+        heks_detail::encodeHexVecImpl<case_type>(d, s, n);
+        return;
+    }
+#    endif
+    heks_detail::encodeHexImpl<case_type>(d, s, n);
 #elif defined(FAST_HEX_NEON)
     heks_detail::encodeHexNeon_impl<case_type>(d, s, n);
 #else
@@ -933,14 +982,20 @@ inline void decode_auto(uint8_t * FAST_HEX_RESTRICT d, const uint8_t * FAST_HEX_
 {
 #if defined(__x86_64__) || defined(_M_X64)
 #    if defined(FAST_HEX_AVX512)
-    decodeHexVec512(d, s, n);
-#    elif defined(FAST_HEX_AVX2)
-    decodeHexVec(d, s, n);
-#    elif defined(__BMI__)
-    decodeHexBMI(d, s, n);
-#    else
-    decodeHexLUT4(d, s, n);
+    if (heks_detail::cpuHasAvx512())
+    {
+        decodeHexVec512(d, s, n);
+        return;
+    }
 #    endif
+#    if defined(FAST_HEX_AVX2)
+    if (heks_detail::cpuHasAvx2())
+    {
+        decodeHexVec(d, s, n);
+        return;
+    }
+#    endif
+    decodeHexBMI(d, s, n);
 #elif defined(__arm__) || defined(__aarch64__) || defined(_M_ARM) || defined(_M_ARM64)
 #    if defined(FAST_HEX_ARM)
     decodeHexBMI(d, s, n);
@@ -950,6 +1005,20 @@ inline void decode_auto(uint8_t * FAST_HEX_RESTRICT d, const uint8_t * FAST_HEX_
 #else
     decodeHexLUT4(d, s, n);
 #endif
+}
+
+// Non-template entry points for encode_auto / decode_auto, so the library can export them
+FAST_HEX_FUNCTION_INLINE void decodeHexAuto(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+{
+    decode_auto(dest, src, len);
+}
+FAST_HEX_FUNCTION_INLINE void encodeHexLowerAuto(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+{
+    encode_auto(dest, src, len, lower);
+}
+FAST_HEX_FUNCTION_INLINE void encodeHexUpperAuto(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+{
+    encode_auto(dest, src, len, upper);
 }
 
 template <typename T>
@@ -1090,7 +1159,7 @@ __attribute__((target("avx2"))) void encode_integral16(uint8_t * output, T numbe
     encodeHex16Fast<case_type, Reverse::Yes128>(output, input);
 }
 template <typename T, typename Case>
-void encode_integral2x8(uint8_t * FAST_HEX_RESTRICT output, const T * FAST_HEX_RESTRICT first, Case)
+__attribute__((target("avx2"))) void encode_integral2x8(uint8_t * FAST_HEX_RESTRICT output, const T * FAST_HEX_RESTRICT first, Case)
 {
     using namespace heks_detail;
     static_assert(sizeof(T) == 8, "T must be 8 bytes (64 bits) in size");

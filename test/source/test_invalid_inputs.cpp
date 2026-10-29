@@ -3,6 +3,7 @@
 #else
 #    include "fast_hex/fast_hex_inline.hpp"
 #endif
+#include "../cpu_features.hpp"
 
 #include <string>
 #include <string_view>
@@ -95,16 +96,20 @@ TEST_CASE("decode_auto_invalid")
 }
 #endif
 
+TEST_CASE("decodeHexAuto_invalid")
+{
+    testInvalidHexDecoding<decodeHexAuto>();
+}
 
 #if defined(FAST_HEX_AVX2)
-TEST_CASE("decodeHexVec_invalid")
+TEST_CASE("decodeHexVec_invalid" * doctest::skip(!cpuHasAvx2()))
 {
     testInvalidHexDecoding<decodeHexVec>();
 }
 #endif
 
 #if defined(FAST_HEX_AVX512)
-TEST_CASE("decodeHexVec512_invalid")
+TEST_CASE("decodeHexVec512_invalid" * doctest::skip(!cpuHasAvx512()))
 {
     testInvalidHexDecoding<decodeHexVec512>();
 }
