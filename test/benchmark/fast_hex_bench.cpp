@@ -71,10 +71,32 @@ void BM_hex_Runtime(benchmark::State & state)
     state.SetBytesProcessed(state.iterations() * static_cast<int64_t>(size));
 }
 
+// Output right after input in one buffer (neighbors)
+template <auto Func, bool Encode>
+void BM_hex_Adjacent(benchmark::State & state)
+{
+    if (skipUnsupported<Func>(state))
+        return;
+    const auto size = static_cast<size_t>(state.range(0));
+    auto data = Encode ? createBinaryData(size) : createHexData(size);
+    std::vector<uint8_t> buffer(data.size() + (Encode ? size * 2 : size));
+    auto * src = buffer.data();
+    auto * dst = src + data.size();
+    std::memcpy(src, data.data(), data.size());
+    for (auto _ : state)
+    {
+        Func(dst, src, RawLength{size});
+        benchmark::DoNotOptimize(dst);
+        benchmark::ClobberMemory();
+    }
+    state.SetBytesProcessed(state.iterations() * static_cast<int64_t>(size));
+}
+
 #define DEFINE_RUNTIME_BENCHMARK(func_name, encode) \
     BENCHMARK_TEMPLATE(BM_hex_Runtime, func_name, encode) \
         ->ArgsProduct({{8, 15, 16, 31, 32, 33, 63, 64, 65, 1024, 1024 * 1024}, {0, 1}}) \
-        ->ArgNames({"bytes", "offset"});
+        ->ArgNames({"bytes", "offset"}); \
+    BENCHMARK_TEMPLATE(BM_hex_Adjacent, func_name, encode)->ArgsProduct({{1, 3, 7, 8, 15, 16, 31, 32}})->ArgNames({"bytes"});
 
 template <typename T>
 std::vector<T> createInputData(size_t count, T)
