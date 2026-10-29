@@ -4,6 +4,7 @@
 #else
 #    include "fast_hex/fast_hex_inline.hpp"
 #endif
+#include "../cpu_features.hpp"
 
 #include <benchmark/benchmark.h>
 
@@ -34,9 +35,25 @@ std::vector<uint8_t> createHexData(size_t binarySize)
     return hex;
 }
 
+// AVX-512 code is compiled in even where the CPU can't run it, so those benchmarks are skipped there
+template <auto Func>
+bool skipUnsupported(benchmark::State & state)
+{
+#if defined(FAST_HEX_AVX512)
+    if ((Func == &encodeHexLowerVec512 || Func == &encodeHexUpperVec512 || Func == &decodeHexVec512) && !cpuHasAvx512())
+    {
+        state.SkipWithMessage("CPU does not support AVX-512 BW/VL/VBMI");
+        return true;
+    }
+#endif
+    return false;
+}
+
 template <auto Func, bool Encode>
 void BM_hex_Runtime(benchmark::State & state)
 {
+    if (skipUnsupported<Func>(state))
+        return;
     const auto size = static_cast<size_t>(state.range(0));
     const auto offset = static_cast<size_t>(state.range(1));
     auto data = Encode ? createBinaryData(size) : createHexData(size);
@@ -82,6 +99,8 @@ std::vector<T> createInputData(size_t count, T)
 #define DEFINE_ENCODE_BENCHMARK(func_name, size_val, size_name) \
     static void BM_##func_name##_##size_name(benchmark::State & state) \
     { \
+        if (skipUnsupported<func_name>(state)) \
+            return; \
         auto data = createBinaryData(size_val); \
         std::vector<uint8_t> hex(size_val * 2); \
 \
@@ -110,6 +129,8 @@ std::vector<T> createInputData(size_t count, T)
 #define DEFINE_DECODE_BENCHMARK(func_name, size_val, size_name) \
     static void BM_##func_name##_##size_name(benchmark::State & state) \
     { \
+        if (skipUnsupported<func_name>(state)) \
+            return; \
         auto hex = createHexData(size_val); \
         std::vector<uint8_t> binary(size_val); \
 \
@@ -210,6 +231,8 @@ DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec512, 1024 * 1024, 1MB)
 DEFINE_RUNTIME_BENCHMARK(encodeHexLowerVec512, true)
 #endif // defined(FAST_HEX_AVX512)
 
+DEFINE_RUNTIME_BENCHMARK(encodeHexLowerAuto, true)
+
 #if defined(FAST_HEX_NEON)
 DEFINE_ENCODE_BENCHMARK(encodeHexNeonLower, 8, 8B)
 DEFINE_ENCODE_BENCHMARK_FAST(encodeHex8LowerNeon, 8, 8B)
@@ -263,6 +286,8 @@ DEFINE_DECODE_BENCHMARK(decodeHexVec512, 1024, 1KB)
 DEFINE_DECODE_BENCHMARK(decodeHexVec512, 1024 * 1024, 1MB)
 DEFINE_RUNTIME_BENCHMARK(decodeHexVec512, false)
 #endif // defined(FAST_HEX_AVX512)
+
+DEFINE_RUNTIME_BENCHMARK(decodeHexAuto, false)
 
 #ifndef FAST_HEX_STATIC_SHARED_LIBRARY
 DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral_naive, uint64_t, 1, 1_uint64)

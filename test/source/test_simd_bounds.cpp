@@ -3,6 +3,7 @@
 #else
 #    include "fast_hex/fast_hex_inline.hpp"
 #endif
+#include "../cpu_features.hpp"
 
 #include <algorithm>
 #include <array>
@@ -175,12 +176,12 @@ void testGuardedBuffers()
 } // namespace
 
 #if defined(FAST_HEX_AVX2)
-TEST_CASE("hexVec_unaligned_buffers")
+TEST_CASE("hexVec_unaligned_buffers" * doctest::skip(!cpuHasAvx2()))
 {
     testUnalignedBuffers<encodeHexLowerVec, encodeHexUpperVec, decodeHexVec>();
 }
 #    if defined(__unix__) || defined(__APPLE__)
-TEST_CASE("hexVec_guarded_buffers")
+TEST_CASE("hexVec_guarded_buffers" * doctest::skip(!cpuHasAvx2()))
 {
     testGuardedBuffers<encodeHexLowerVec, encodeHexUpperVec, decodeHexVec>();
 }
@@ -188,14 +189,26 @@ TEST_CASE("hexVec_guarded_buffers")
 #endif
 
 #if defined(FAST_HEX_AVX512)
-TEST_CASE("hexVec512_unaligned_buffers")
+TEST_CASE("hexVec512_unaligned_buffers" * doctest::skip(!cpuHasAvx512()))
 {
     testUnalignedBuffers<encodeHexLowerVec512, encodeHexUpperVec512, decodeHexVec512>();
 }
 #    if defined(__unix__) || defined(__APPLE__)
-TEST_CASE("hexVec512_guarded_buffers")
+TEST_CASE("hexVec512_guarded_buffers" * doctest::skip(!cpuHasAvx512()))
 {
     testGuardedBuffers<encodeHexLowerVec512, encodeHexUpperVec512, decodeHexVec512>();
 }
 #    endif
+#endif
+
+// Whichever path the CPU gets, it has to stay inside the buffers as well
+TEST_CASE("hexAuto_unaligned_buffers")
+{
+    testUnalignedBuffers<encodeHexLowerAuto, encodeHexUpperAuto, decodeHexAuto>();
+}
+#if defined(__unix__) || defined(__APPLE__)
+TEST_CASE("hexAuto_guarded_buffers")
+{
+    testGuardedBuffers<encodeHexLowerAuto, encodeHexUpperAuto, decodeHexAuto>();
+}
 #endif

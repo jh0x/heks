@@ -24,13 +24,13 @@ endif()
 
 add_library(fast_hex_headers INTERFACE)
 add_library(fast_hex::headers ALIAS fast_hex_headers)
+set_property(TARGET fast_hex_headers PROPERTY EXPORT_NAME headers)
 
+# The install include directory is set by install(TARGETS ... INCLUDES) in install-rules.cmake
 target_include_directories(
     fast_hex_headers
     ${warning_guard}
-    INTERFACE
-        "\$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
-        "\$<INSTALL_INTERFACE:include>"
+    INTERFACE "\$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
 )
 
 if(fast_hex_BUILD_LIBS)
