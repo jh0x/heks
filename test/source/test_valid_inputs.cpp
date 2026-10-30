@@ -1,9 +1,5 @@
-#ifdef FAST_HEX_STATIC_SHARED_LIBRARY
-#    include <fast_hex/fast_hex.hpp>
-#else
-#    include "fast_hex/fast_hex_inline.hpp"
-#endif
 #include "../cpu_features.hpp"
+#include "fast_hex/fast_hex_inline.hpp"
 
 #include <algorithm>
 #include <iomanip>
@@ -402,7 +398,6 @@ TEST_CASE("encodeHexNeonLower")
 }
 #endif
 
-#ifndef FAST_HEX_STATIC_SHARED_LIBRARY
 static void eu(uint8_t * d, const uint8_t * s, RawLength n)
 {
     encode_auto(d, s, n, upper);
@@ -415,7 +410,6 @@ TEST_CASE("encode_auto_invalid")
 {
     testHexEncoding<el, eu>();
 }
-#endif
 
 TEST_CASE("encodeHexAuto")
 {
@@ -443,9 +437,7 @@ TEST_CASE("decodeHexBMI_valid")
     testHexDecoding<decodeHexBMI>();
 }
 
-#ifndef FAST_HEX_STATIC_SHARED_LIBRARY
 TEST_CASE("decode_auto_invalid")
 {
     testHexDecoding<decode_auto>();
 }
-#endif

@@ -6,27 +6,13 @@
 # consumers can trivially build and package the project
 if(PROJECT_IS_TOP_LEVEL)
     option(fast_hex_DEVELOPER_MODE "Enable developer mode" OFF)
-    option(fast_hex_BUILD_LIBS "Build shared or static libs." ON)
-    option(fast_hex_BUILD_SHARED_LIBS "Build shared libs." OFF)
-    option(fast_hex_USE_NAMESPACE "Use heks namespace for fast_hex library" ON)
     # Off by default: it ties everything that is built to the CPU of the build machine
     option(fast_hex_ENABLE_MARCH_NATIVE "Enable -march=native" OFF)
     option(fast_hex_ENABLE_NEON "NEON code will be used" ON)
 endif()
 
-# ---- Suppress C4251 on Windows ----
-
-# Please see include/fast_hex/fast_hex.hpp for more details
-set(pragma_suppress_c4251
-    "
-/* This needs to suppress only for MSVC */
-#if defined(_MSC_VER) && !defined(__ICL)
-#  define FAST_HEX_SUPPRESS_C4251 _Pragma(\"warning(suppress:4251)\")
-#else
-#  define FAST_HEX_SUPPRESS_C4251
-#endif
-"
-)
+# Outside the block above: add_subdirectory and FetchContent consumers get the namespace too
+option(fast_hex_USE_NAMESPACE "Use heks namespace for fast_hex library" ON)
 
 # ---- Warning guard ----
 

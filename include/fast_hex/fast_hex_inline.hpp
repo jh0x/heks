@@ -1,30 +1,13 @@
 #pragma once
 
 #include <bit>
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <string_view>
 
-// With GCC/Clang on x86-64 all the SIMD code is compiled in: each function has its own target
-// attribute and the Auto functions check the CPU at runtime. MSVC has no target attributes.
-// Define FAST_HEX_NO_AVX, FAST_HEX_NO_AVX2 or FAST_HEX_NO_AVX512 to leave that code out.
-#if defined(__GNUC__) && defined(__x86_64__)
-#    if !defined(FAST_HEX_AVX) && !defined(FAST_HEX_NO_AVX)
-#        define FAST_HEX_AVX 1
-#    endif
-#    if !defined(FAST_HEX_AVX2) && !defined(FAST_HEX_NO_AVX2)
-#        define FAST_HEX_AVX2 1
-#    endif
-#    if !defined(FAST_HEX_AVX512) && !defined(FAST_HEX_NO_AVX512)
-#        define FAST_HEX_AVX512 1
-#    endif
-#endif
-
-
-#if defined(FAST_HEX_AVX2) || defined(FAST_HEX_AVX512)
-#    define FAST_HEX_AVX2_HELPERS
-#endif
+#include "fast_hex/fast_hex_common.hpp"
 
 #if defined(FAST_HEX_AVX512) || defined(FAST_HEX_AVX2) || defined(FAST_HEX_AVX)
 #    if defined(__GNUC__)
@@ -36,28 +19,6 @@
 
 #if defined(FAST_HEX_NEON)
 #    include <arm_neon.h>
-#endif
-
-#if defined(_MSC_VER)
-#    define FAST_HEX_RESTRICT __restrict // The C99 keyword, available as a C++ extension
-#else
-#    define FAST_HEX_RESTRICT __restrict__
-#endif
-
-#if FAST_HEX_USE_NAMESPACE
-#    define FAST_HEX_NAMESPACE_OPEN \
-        namespace heks \
-        {
-#    define FAST_HEX_NAMESPACE_CLOSE }
-#else
-#    define FAST_HEX_NAMESPACE_OPEN
-#    define FAST_HEX_NAMESPACE_CLOSE
-#endif
-
-#ifdef FAST_HEX_STATIC_SHARED_LIBRARY
-#    define FAST_HEX_FUNCTION_INLINE
-#else
-#    define FAST_HEX_FUNCTION_INLINE inline
 #endif
 
 #if defined(_MSC_VER)
@@ -77,9 +38,10 @@
 // decodeHexLUT
 // decodeHexLUT4
 // decodeHexBMI
-// decodeHexVec (since reworked to decode nibbles via a pshufb delta table)
 // encodeHexImpl
-// encodeHexVecImpl
+// decodeHexVecLarge (the 32 byte loop, since reworked to decode nibbles via a pshufb delta table)
+// encodeHexVecLarge (the 32 byte loop)
+// The overlapping final blocks and the code for inputs under 32 bytes are not from upstream
 
 FAST_HEX_NAMESPACE_OPEN
 
@@ -96,6 +58,12 @@ void encodeHexUpper(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_R
 void decodeHexAuto(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
 void encodeHexLowerAuto(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
 void encodeHexUpperAuto(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len);
+
+// Scalar versions of the fixed-size Fast functions. Run on any CPU. The Fast versions need AVX (8 bytes) or AVX2 (16 bytes)
+void encodeHex8LowerScalar(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
+void encodeHex8UpperScalar(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
+void encodeHex16LowerScalar(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
+void encodeHex16UpperScalar(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
 
 #if defined(FAST_HEX_AVX)
 void encodeHex8LowerFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src);
@@ -376,6 +344,7 @@ __attribute__((target("avx2"))) inline void decodeHexSmallVec(uint8_t * dest, co
 // len >= 32
 __attribute__((target("avx2"))) inline void decodeHexVecLarge(uint8_t * dest, const uint8_t * src, size_t len)
 {
+    assert(len >= 32);
     while (len >= 32)
     {
         decodeHex32Vec(dest, src);
@@ -557,6 +526,7 @@ template <HexCase H>
 __attribute__((target("avx2"))) inline void
 encodeHexVecLarge(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, size_t len)
 {
+    assert(len >= 32);
     while (len >= 32)
     {
         encodeHex32Vec<H>(dest, src);
@@ -567,7 +537,7 @@ encodeHexVecLarge(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RES
 
     if (len > 0)
     {
-        // Re-encode the final full block, overalpping output already written by the loop
+        // Re-encode the final full block, overlapping output already written by the loop
         // Everything inside original buffers
         encodeHex32Vec<H>(dest + len * 2 - 64, src + len - 32);
     }
@@ -582,6 +552,17 @@ encodeHexVecImpl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_REST
         encodeHexSmallVec<H>(dest, src, raw_length);
     else
         encodeHexVecLarge<H>(dest, src, raw_length);
+}
+
+// len is number of dest bytes (i.e. half of src length)
+__attribute__((target("avx2"))) inline void
+decodeHexVecImpl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+{
+    const auto raw_length = static_cast<size_t>(len);
+    if (raw_length < 32)
+        decodeHexSmallVec(dest, src, raw_length);
+    else
+        decodeHexVecLarge(dest, src, raw_length);
 }
 
 #endif // defined(FAST_HEX_AVX2_HELPERS)
@@ -613,6 +594,7 @@ FAST_HEX_AVX512_TARGET inline __m512i encodeHex32Vec512(__m512i in)
 template <HexCase H>
 FAST_HEX_AVX512_TARGET inline void encodeHexVec512Large(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, size_t len)
 {
+    assert(len >= 32);
     auto raw_length = len;
     while (raw_length >= 64)
     {
@@ -670,9 +652,10 @@ FAST_HEX_AVX512_TARGET inline __m512i unhexPairs512(__m512i value)
 // len >= 32
 FAST_HEX_AVX512_TARGET inline void decodeHexVec512Large(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, size_t len)
 {
+    assert(len >= 32);
     auto raw_length = len;
     // clang-format off
-    // Low byte of every 16 bit lane of a, than b
+    // Low byte of every 16 bit lane of a, then b
     const __m512i EVEN_BYTES = _mm512_set_epi8(
             126, 124, 122, 120, 118, 116, 114, 112, 110, 108, 106, 104, 102, 100, 98, 96, 94, 92, 90, 88, 86, 84, 82, 80, 78, 76, 74, 72, 70, 68, 66, 64,
             62, 60, 58, 56, 54, 52, 50, 48, 46, 44, 42, 40, 38, 36, 34, 32, 30, 28, 26, 24, 22, 20, 18, 16, 14, 12, 10, 8, 6, 4, 2, 0);
@@ -699,6 +682,25 @@ FAST_HEX_AVX512_TARGET inline void decodeHexVec512Large(uint8_t * FAST_HEX_RESTR
         __m512i a = unhexPairs512(_mm512_loadu_si512(src + raw_length * 2 - 64));
         _mm256_storeu_si256(reinterpret_cast<__m256i *>(dest + raw_length - 32), _mm512_cvtepi16_epi8(a));
     }
+}
+
+// len is number of dest bytes (i.e. half of src length)
+FAST_HEX_AVX512_TARGET inline void
+decodeHexVec512Impl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+{
+    const auto raw_length = static_cast<size_t>(len);
+    if (raw_length > 16 && raw_length < 32)
+    {
+        __m256i first = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(src));
+        __m256i last = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(src + raw_length * 2 - 32));
+        __m256i a = _mm512_cvtepi16_epi8(unhexPairs512(_mm512_inserti64x4(_mm512_castsi256_si512(first), last, 1)));
+        _mm_storeu_si128(reinterpret_cast<__m128i *>(dest), _mm256_castsi256_si128(a));
+        _mm_storeu_si128(reinterpret_cast<__m128i *>(dest + raw_length - 16), _mm256_extracti128_si256(a, 1));
+    }
+    else if (raw_length < 32)
+        decodeHexSmallVec(dest, src, raw_length);
+    else
+        decodeHexVec512Large(dest, src, raw_length);
 }
 #endif // defined(FAST_HEX_AVX512)
 
@@ -826,32 +828,11 @@ void encodeHexNeon16_impl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST
 
 #endif // FAST_HEX_NEON
 
-// Whether the CPU running the code can execute the AVX2 / AVX-512 functions that are compiled in.
-// Checked on every call, which is a single load: the compiler runtime fills the feature bits in from
-// an early constructor. Before that they read as 0, so a call from a very early constructor gets the
-// scalar code. A function-local static would add a guard check to every call.
-// No shortcut for __AVX2__ etc.: these are inline, so their definition must not depend on per-file
-// flags (the linker keeps one copy for files built with and without them).
-#if defined(FAST_HEX_AVX2_HELPERS)
-inline bool cpuHasAvx2()
-{
-    return __builtin_cpu_supports("avx2") != 0;
-}
-#endif // defined(FAST_HEX_AVX2_HELPERS)
-
-#if defined(FAST_HEX_AVX512)
-inline bool cpuHasAvx512()
-{
-    return __builtin_cpu_supports("avx512f") && __builtin_cpu_supports("avx512bw") && __builtin_cpu_supports("avx512vl")
-        && __builtin_cpu_supports("avx512vbmi");
-}
-#endif // defined(FAST_HEX_AVX512)
-
 } // namespace heks_detail
 
 
 // len is number of dest bytes
-FAST_HEX_FUNCTION_INLINE void decodeHexLUT(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+inline void decodeHexLUT(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
     using namespace heks_detail;
     const auto raw_length = static_cast<size_t>(len);
@@ -866,7 +847,7 @@ FAST_HEX_FUNCTION_INLINE void decodeHexLUT(uint8_t * FAST_HEX_RESTRICT dest, con
 }
 
 // len is number of dest bytes
-FAST_HEX_FUNCTION_INLINE void decodeHexLUT4(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+inline void decodeHexLUT4(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
     using namespace heks_detail;
     const auto raw_length = static_cast<size_t>(len);
@@ -881,41 +862,59 @@ FAST_HEX_FUNCTION_INLINE void decodeHexLUT4(uint8_t * FAST_HEX_RESTRICT dest, co
 }
 
 
-// len is number or dest bytes (i.e. half of src length)
-FAST_HEX_FUNCTION_INLINE void decodeHexBMI(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+// len is number of dest bytes (i.e. half of src length)
+inline void decodeHexBMI(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
     using namespace heks_detail;
-    const auto raw_length = static_cast<size_t>(len);
-    for (size_t i = 0; i < raw_length; i++)
+    // Looping until dest reaches its end vectorizes well with GCC and Clang. GCC does not vectorize an
+    // i < length count when the length is only known at runtime, and Clang loads src a byte at a time
+    // when the loop runs until src reaches its end
+    uint8_t * const dest_end = dest + static_cast<size_t>(len);
+    while (dest != dest_end)
     {
         uint8_t a = *src++;
         uint8_t b = *src++;
         a = static_cast<uint8_t>(unhexBitManip(a));
         b = static_cast<uint8_t>(unhexBitManip(b));
-        dest[i] = static_cast<uint8_t>((a << 4) | b);
+        *dest++ = static_cast<uint8_t>((a << 4) | b);
     }
 }
 
 
-FAST_HEX_FUNCTION_INLINE void encodeHexLower(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+inline void encodeHexLower(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
     heks_detail::encodeHexImpl<heks_detail::HexCase::Lower>(dest, src, len);
 }
-FAST_HEX_FUNCTION_INLINE void encodeHexUpper(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+inline void encodeHexUpper(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
     heks_detail::encodeHexImpl<heks_detail::HexCase::Upper>(dest, src, len);
 }
 
+inline void encodeHex8LowerScalar(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
+{
+    heks_detail::encodeHexImpl<heks_detail::HexCase::Lower>(dest, src, RawLength{8});
+}
+inline void encodeHex8UpperScalar(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
+{
+    heks_detail::encodeHexImpl<heks_detail::HexCase::Upper>(dest, src, RawLength{8});
+}
+inline void encodeHex16LowerScalar(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
+{
+    heks_detail::encodeHexImpl<heks_detail::HexCase::Lower>(dest, src, RawLength{16});
+}
+inline void encodeHex16UpperScalar(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
+{
+    heks_detail::encodeHexImpl<heks_detail::HexCase::Upper>(dest, src, RawLength{16});
+}
+
 
 #if defined(FAST_HEX_AVX)
-__attribute__((target("avx"))) FAST_HEX_FUNCTION_INLINE void
-encodeHex8LowerFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
+__attribute__((target("avx"))) inline void encodeHex8LowerFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
 {
     heks_detail::encodeHex8Fast<heks_detail::HexCase::Lower>(dest, src);
 }
 
-__attribute__((target("avx"))) FAST_HEX_FUNCTION_INLINE void
-encodeHex8UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
+__attribute__((target("avx"))) inline void encodeHex8UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
 {
     heks_detail::encodeHex8Fast<heks_detail::HexCase::Upper>(dest, src);
 }
@@ -923,38 +922,30 @@ encodeHex8UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_R
 
 #if defined(FAST_HEX_AVX2)
 
-// len is number or dest bytes (i.e. half of src length)
-__attribute__((target("avx2"))) FAST_HEX_FUNCTION_INLINE void
+// len is number of dest bytes (i.e. half of src length)
+__attribute__((target("avx2"))) inline void
 decodeHexVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
-    using namespace heks_detail;
-    auto raw_length = static_cast<size_t>(len);
-
-    if (raw_length < 32)
-        decodeHexSmallVec(dest, src, raw_length);
-    else
-        decodeHexVecLarge(dest, src, raw_length);
+    heks_detail::decodeHexVecImpl(dest, src, len);
 }
 
-__attribute__((target("avx2"))) FAST_HEX_FUNCTION_INLINE void
+__attribute__((target("avx2"))) inline void
 encodeHexLowerVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
     heks_detail::encodeHexVecImpl<heks_detail::HexCase::Lower>(dest, src, len);
 }
-__attribute__((target("avx2"))) FAST_HEX_FUNCTION_INLINE void
+__attribute__((target("avx2"))) inline void
 encodeHexUpperVec(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
     heks_detail::encodeHexVecImpl<heks_detail::HexCase::Upper>(dest, src, len);
 }
 
-__attribute__((target("avx2"))) FAST_HEX_FUNCTION_INLINE void
-encodeHex16LowerFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
+__attribute__((target("avx2"))) inline void encodeHex16LowerFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
 {
     heks_detail::encodeHex16Fast<heks_detail::HexCase::Lower>(dest, src);
 }
 
-__attribute__((target("avx2"))) FAST_HEX_FUNCTION_INLINE void
-encodeHex16UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
+__attribute__((target("avx2"))) inline void encodeHex16UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
 {
     heks_detail::encodeHex16Fast<heks_detail::HexCase::Upper>(dest, src);
 }
@@ -962,32 +953,18 @@ encodeHex16UpperFast(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_
 
 #if defined(FAST_HEX_AVX512)
 
-// len is number or dest bytes (i.e. half of src length)
-FAST_HEX_AVX512_TARGET FAST_HEX_FUNCTION_INLINE void
-decodeHexVec512(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+// len is number of dest bytes (i.e. half of src length)
+FAST_HEX_AVX512_TARGET inline void decodeHexVec512(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
-    using namespace heks_detail;
-    const auto raw_length = static_cast<size_t>(len);
-    if (raw_length > 16 && raw_length < 32)
-    {
-        __m256i first = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(src));
-        __m256i last = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(src + raw_length * 2 - 32));
-        __m256i a = _mm512_cvtepi16_epi8(unhexPairs512(_mm512_inserti64x4(_mm512_castsi256_si512(first), last, 1)));
-        _mm_storeu_si128(reinterpret_cast<__m128i *>(dest), _mm256_castsi256_si128(a));
-        _mm_storeu_si128(reinterpret_cast<__m128i *>(dest + raw_length - 16), _mm256_extracti128_si256(a, 1));
-    }
-    else if (raw_length < 32)
-        decodeHexSmallVec(dest, src, raw_length);
-    else
-        decodeHexVec512Large(dest, src, raw_length);
+    heks_detail::decodeHexVec512Impl(dest, src, len);
 }
 
-FAST_HEX_AVX512_TARGET FAST_HEX_FUNCTION_INLINE void
+FAST_HEX_AVX512_TARGET inline void
 encodeHexLowerVec512(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
     heks_detail::encodeHexVec512Impl<heks_detail::HexCase::Lower>(dest, src, len);
 }
-FAST_HEX_AVX512_TARGET FAST_HEX_FUNCTION_INLINE void
+FAST_HEX_AVX512_TARGET inline void
 encodeHexUpperVec512(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
     heks_detail::encodeHexVec512Impl<heks_detail::HexCase::Upper>(dest, src, len);
@@ -996,30 +973,30 @@ encodeHexUpperVec512(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_
 
 #if defined(FAST_HEX_NEON)
 
-FAST_HEX_FUNCTION_INLINE void encodeHexNeonLower(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+inline void encodeHexNeonLower(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
     heks_detail::encodeHexNeon_impl<heks_detail::HexCase::Lower>(dest, src, len);
 }
 
-FAST_HEX_FUNCTION_INLINE void encodeHexNeonUpper(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+inline void encodeHexNeonUpper(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
     heks_detail::encodeHexNeon_impl<heks_detail::HexCase::Upper>(dest, src, len);
 }
 
-FAST_HEX_FUNCTION_INLINE void encodeHex8LowerNeon(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
+inline void encodeHex8LowerNeon(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
 {
     heks_detail::encodeHexNeon8_impl<heks_detail::HexCase::Lower>(dest, src);
 }
-FAST_HEX_FUNCTION_INLINE void encodeHex8UpperNeon(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
+inline void encodeHex8UpperNeon(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
 {
     heks_detail::encodeHexNeon8_impl<heks_detail::HexCase::Upper>(dest, src);
 }
 
-FAST_HEX_FUNCTION_INLINE void encodeHex16LowerNeon(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
+inline void encodeHex16LowerNeon(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
 {
     heks_detail::encodeHexNeon16_impl<heks_detail::HexCase::Lower>(dest, src);
 }
-FAST_HEX_FUNCTION_INLINE void encodeHex16UpperNeon(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
+inline void encodeHex16UpperNeon(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src)
 {
     heks_detail::encodeHexNeon16_impl<heks_detail::HexCase::Upper>(dest, src);
 }
@@ -1043,25 +1020,17 @@ inline void encode_auto(uint8_t * FAST_HEX_RESTRICT d, const uint8_t * FAST_HEX_
 {
     constexpr auto case_type = Case::value;
 #if defined(__x86_64__) || defined(_M_X64)
-    const auto len = static_cast<size_t>(n);
-#    if defined(FAST_HEX_AVX2_HELPERS)
-    if (len < 32 && heks_detail::cpuHasAvx2())
-    {
-        heks_detail::encodeHexSmallVec<case_type>(d, s, len);
-        return;
-    }
-#    endif
 #    if defined(FAST_HEX_AVX512)
-    if (len >= 32 && heks_detail::cpuHasAvx512())
+    if (heks_detail::cpuHasAvx512())
     {
-        heks_detail::encodeHexVec512Large<case_type>(d, s, len);
+        heks_detail::encodeHexVec512Impl<case_type>(d, s, n);
         return;
     }
 #    endif
 #    if defined(FAST_HEX_AVX2)
-    if (len >= 32 && heks_detail::cpuHasAvx2())
+    if (heks_detail::cpuHasAvx2())
     {
-        heks_detail::encodeHexVecLarge<case_type>(d, s, len);
+        heks_detail::encodeHexVecImpl<case_type>(d, s, n);
         return;
     }
 #    endif
@@ -1076,25 +1045,17 @@ inline void encode_auto(uint8_t * FAST_HEX_RESTRICT d, const uint8_t * FAST_HEX_
 inline void decode_auto(uint8_t * FAST_HEX_RESTRICT d, const uint8_t * FAST_HEX_RESTRICT s, RawLength n)
 {
 #if defined(__x86_64__) || defined(_M_X64)
-    const auto len = static_cast<size_t>(n);
-#    if defined(FAST_HEX_AVX2_HELPERS)
-    if (len < 32 && heks_detail::cpuHasAvx2())
-    {
-        heks_detail::decodeHexSmallVec(d, s, len);
-        return;
-    }
-#    endif
 #    if defined(FAST_HEX_AVX512)
-    if (len >= 32 && heks_detail::cpuHasAvx512())
+    if (heks_detail::cpuHasAvx512())
     {
-        heks_detail::decodeHexVec512Large(d, s, len);
+        heks_detail::decodeHexVec512Impl(d, s, n);
         return;
     }
 #    endif
 #    if defined(FAST_HEX_AVX2)
-    if (len >= 32 && heks_detail::cpuHasAvx2())
+    if (heks_detail::cpuHasAvx2())
     {
-        heks_detail::decodeHexVecLarge(d, s, len);
+        heks_detail::decodeHexVecImpl(d, s, n);
         return;
     }
 #    endif
@@ -1110,16 +1071,16 @@ inline void decode_auto(uint8_t * FAST_HEX_RESTRICT d, const uint8_t * FAST_HEX_
 #endif
 }
 
-// Non-template entry points for encode_auto / decode_auto, so the library can export them
-FAST_HEX_FUNCTION_INLINE void decodeHexAuto(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+// Non-template entry points for encode_auto / decode_auto
+inline void decodeHexAuto(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
     decode_auto(dest, src, len);
 }
-FAST_HEX_FUNCTION_INLINE void encodeHexLowerAuto(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+inline void encodeHexLowerAuto(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
     encode_auto(dest, src, len, lower);
 }
-FAST_HEX_FUNCTION_INLINE void encodeHexUpperAuto(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+inline void encodeHexUpperAuto(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
     encode_auto(dest, src, len, upper);
 }
@@ -1169,6 +1130,12 @@ T decode_integral_naive(const uint8_t * src)
         uint64_t low_part = decode_integral_naive<uint64_t>(src + 16);
         return static_cast<T>((static_cast<T>(high_part) << 64) | low_part);
     }
+}
+
+// Scalar version of decode_integral8 (which needs AVX). Runs on any CPU
+inline uint64_t decode_integral8_scalar(const uint8_t * src)
+{
+    return decode_integral_naive<uint64_t>(src);
 }
 
 #if defined(FAST_HEX_AVX)
@@ -1223,6 +1190,27 @@ void encode_integral_naive(uint8_t * output, T number, Case)
         else
             std::memcpy(output + i * 2, &hex_table[static_cast<size_t>(uint8[i]) * 2], 2);
     }
+}
+
+// Scalar versions of encode_integral8 (needs AVX) and encode_integral16 / encode_integral2x8 (need AVX2). Run on any CPU
+template <typename T, typename Case>
+void encode_integral8_scalar(uint8_t * output, T number, Case c)
+{
+    static_assert(sizeof(T) == 8, "T must be 8 bytes (64 bits) in size");
+    encode_integral_naive(output, number, c);
+}
+template <typename T, typename Case>
+void encode_integral16_scalar(uint8_t * output, T number, Case c)
+{
+    static_assert(sizeof(T) == 16, "T must be 16 bytes (128 bits) in size");
+    encode_integral_naive(output, number, c);
+}
+template <typename T, typename Case>
+void encode_integral2x8_scalar(uint8_t * FAST_HEX_RESTRICT output, const T * FAST_HEX_RESTRICT first, Case c)
+{
+    static_assert(sizeof(T) == 8, "T must be 8 bytes (64 bits) in size");
+    encode_integral_naive(output, first[0], c);
+    encode_integral_naive(output + 2 * sizeof(T), first[1], c);
 }
 
 #if defined(FAST_HEX_AVX)

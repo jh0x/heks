@@ -1,7 +1,11 @@
 #pragma once
 
+#include "fast_hex/fast_hex_common.hpp"
+
 // The build compiles in AVX, AVX2 and AVX-512 code without requiring the build machine to support it,
-// so anything calling those functions directly has to check the CPU first
+// so anything calling those functions directly has to check the CPU first. AVX2 and AVX-512 use the
+// library's own checks. doctest evaluates skip() from static constructors, which can run before the
+// compiler runtime has filled in the CPU feature bits, hence the __builtin_cpu_init() calls.
 inline bool cpuHasAvx()
 {
 #if defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__))
@@ -14,9 +18,12 @@ inline bool cpuHasAvx()
 
 inline bool cpuHasAvx2()
 {
-#if defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__))
+#if defined(FAST_HEX_AVX2_HELPERS)
+#    if FAST_HEX_USE_NAMESPACE
+    using namespace heks;
+#    endif
     __builtin_cpu_init();
-    return __builtin_cpu_supports("avx2") != 0;
+    return heks_detail::cpuHasAvx2();
 #else
     return false;
 #endif
@@ -24,10 +31,12 @@ inline bool cpuHasAvx2()
 
 inline bool cpuHasAvx512()
 {
-#if defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__))
+#if defined(FAST_HEX_AVX512)
+#    if FAST_HEX_USE_NAMESPACE
+    using namespace heks;
+#    endif
     __builtin_cpu_init();
-    return __builtin_cpu_supports("avx512f") && __builtin_cpu_supports("avx512bw") && __builtin_cpu_supports("avx512vl")
-        && __builtin_cpu_supports("avx512vbmi");
+    return heks_detail::cpuHasAvx512();
 #else
     return false;
 #endif

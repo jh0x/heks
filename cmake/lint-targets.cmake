@@ -1,6 +1,4 @@
 set(FORMAT_PATTERNS
-    source/*.cpp
-    source/*.hpp
     include/*.hpp
     test/*.cpp
     test/*.hpp

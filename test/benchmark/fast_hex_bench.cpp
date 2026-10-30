@@ -1,10 +1,6 @@
 #include <cstdint>
-#ifdef FAST_HEX_STATIC_SHARED_LIBRARY
-#    include <fast_hex/fast_hex.hpp>
-#else
-#    include "fast_hex/fast_hex_inline.hpp"
-#endif
 #include "../cpu_features.hpp"
+#include "fast_hex/fast_hex_inline.hpp"
 
 #include <benchmark/benchmark.h>
 
@@ -12,7 +8,7 @@
 #include <random>
 #include <vector>
 
-#ifdef FAST_HEX_USE_NAMESPACE
+#if FAST_HEX_USE_NAMESPACE
 using namespace heks;
 #endif
 
@@ -35,17 +31,65 @@ std::vector<uint8_t> createHexData(size_t binarySize)
     return hex;
 }
 
-// AVX-512 code is compiled in even where the CPU can't run it, so those benchmarks are skipped there
+// AVX, AVX2 and AVX-512 code is compiled in even where the CPU can't run it, so those benchmarks are skipped there
+enum class Isa
+{
+    None,
+    Avx,
+    Avx2,
+    Avx512
+};
+
+// Instruction set each benchmarked function needs
+template <auto Func>
+constexpr Isa required_isa = Isa::None;
+
+#if defined(FAST_HEX_AVX)
+template <>
+constexpr Isa required_isa<&encodeHex8LowerFast> = Isa::Avx;
+template <>
+constexpr Isa required_isa<&encodeHex8UpperFast> = Isa::Avx;
+#endif
+#if defined(FAST_HEX_AVX2)
+template <>
+constexpr Isa required_isa<&encodeHexLowerVec> = Isa::Avx2;
+template <>
+constexpr Isa required_isa<&encodeHexUpperVec> = Isa::Avx2;
+template <>
+constexpr Isa required_isa<&encodeHex16LowerFast> = Isa::Avx2;
+template <>
+constexpr Isa required_isa<&encodeHex16UpperFast> = Isa::Avx2;
+template <>
+constexpr Isa required_isa<&decodeHexVec> = Isa::Avx2;
+#endif
+#if defined(FAST_HEX_AVX512)
+template <>
+constexpr Isa required_isa<&encodeHexLowerVec512> = Isa::Avx512;
+template <>
+constexpr Isa required_isa<&encodeHexUpperVec512> = Isa::Avx512;
+template <>
+constexpr Isa required_isa<&decodeHexVec512> = Isa::Avx512;
+#endif
+#if defined(FAST_HEX_AVX)
+template <>
+constexpr Isa required_isa<&encode_integral8<uint64_t, lower_t>> = Isa::Avx;
+#endif
+#if defined(FAST_HEX_AVX2)
+template <>
+constexpr Isa required_isa<&encode_integral16<__uint128_t, lower_t>> = Isa::Avx2;
+template <>
+constexpr Isa required_isa<&encode_integral2x8<uint64_t, lower_t>> = Isa::Avx2;
+#endif
+
 template <auto Func>
 bool skipUnsupported(benchmark::State & state)
 {
-#if defined(FAST_HEX_AVX512)
-    if ((Func == &encodeHexLowerVec512 || Func == &encodeHexUpperVec512 || Func == &decodeHexVec512) && !cpuHasAvx512())
+    constexpr Isa isa = required_isa<Func>;
+    if ((isa == Isa::Avx && !cpuHasAvx()) || (isa == Isa::Avx2 && !cpuHasAvx2()) || (isa == Isa::Avx512 && !cpuHasAvx512()))
     {
-        state.SkipWithMessage("CPU does not support AVX-512 BW/VL/VBMI");
+        state.SkipWithMessage("CPU does not support the instruction set");
         return true;
     }
-#endif
     return false;
 }
 
@@ -137,6 +181,8 @@ std::vector<T> createInputData(size_t count, T)
 #define DEFINE_ENCODE_BENCHMARK_FAST(func_name, size_val, size_name) \
     static void BM_##func_name##_##size_name(benchmark::State & state) \
     { \
+        if (skipUnsupported<func_name>(state)) \
+            return; \
         auto data = createBinaryData(size_val); \
         std::vector<uint8_t> hex(size_val * 2); \
 \
@@ -167,6 +213,8 @@ std::vector<T> createInputData(size_t count, T)
 #define DEFINE_ENCODE_INTEGRAL_BENCHMARK(func_name, Type, size_val, size_name) \
     static void BM_##func_name##_##size_name(benchmark::State & state) \
     { \
+        if (skipUnsupported<&func_name<Type, lower_t>>(state)) \
+            return; \
         auto data = createInputData(size_val, Type{}); \
         std::vector<uint8_t> hex(size_val * 2 * sizeof(Type)); \
         for (auto _ : state) \
@@ -183,6 +231,8 @@ std::vector<T> createInputData(size_t count, T)
 #define DEFINE_ENCODE_INTEGRAL_BENCHMARK2x8(func_name, size_val, size_name) \
     static void BM_##func_name##_##size_name(benchmark::State & state) \
     { \
+        if (skipUnsupported<&func_name<uint64_t, lower_t>>(state)) \
+            return; \
         auto data = createInputData(size_val * 2, uint64_t{}); \
         std::vector<uint8_t> hex(size_val * 2 * sizeof(uint64_t) * 2); \
         for (auto _ : state) \
@@ -199,6 +249,8 @@ std::vector<T> createInputData(size_t count, T)
 #define DEFINE_DECODE_INTEGRAL_BENCHMARK(func_name, Type, size_val, size_name) \
     static void BM_##func_name##_##size_name(benchmark::State & state) \
     { \
+        if (skipUnsupported<&func_name<Type>>(state)) \
+            return; \
         auto data = createInputData(size_val, Type{}); \
         std::vector<uint8_t> hex(size_val * 2 * sizeof(Type)); \
         for (size_t i = 0; i < data.size(); ++i) \
@@ -227,6 +279,9 @@ DEFINE_ENCODE_BENCHMARK(encodeHexLower, 32, 32B)
 DEFINE_ENCODE_BENCHMARK(encodeHexLower, 64, 64B)
 DEFINE_ENCODE_BENCHMARK(encodeHexLower, 1024, 1KB)
 DEFINE_ENCODE_BENCHMARK(encodeHexLower, 1024 * 1024, 1MB)
+
+DEFINE_ENCODE_BENCHMARK_FAST(encodeHex8LowerScalar, 8, 8B)
+DEFINE_ENCODE_BENCHMARK_FAST(encodeHex16LowerScalar, 16, 16B)
 
 #if defined(FAST_HEX_AVX)
 DEFINE_ENCODE_BENCHMARK_FAST(encodeHex8LowerFast, 8, 8B)
@@ -311,7 +366,6 @@ DEFINE_RUNTIME_BENCHMARK(decodeHexVec512, false)
 
 DEFINE_RUNTIME_BENCHMARK(decodeHexAuto, false)
 
-#ifndef FAST_HEX_STATIC_SHARED_LIBRARY
 DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral_naive, uint64_t, 1, 1_uint64)
 DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral_naive, uint64_t, 8, 8_uint64)
 DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral_naive, uint64_t, 1024, 1024_uint64)
@@ -322,6 +376,15 @@ DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral_naive, __uint128_t, 1, 1_uint12
 DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral_naive, __uint128_t, 8, 8_uint128)
 DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral_naive, __uint128_t, 1024, 1024_uint128)
 DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral_naive, __uint128_t, 1024 * 1024, 1048576_uint128)
+#endif
+
+DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral8_scalar, uint64_t, 1, 1_uint64)
+DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral8_scalar, uint64_t, 1024, 1024_uint64)
+DEFINE_ENCODE_INTEGRAL_BENCHMARK2x8(encode_integral2x8_scalar, 1, 1_uint64x2)
+DEFINE_ENCODE_INTEGRAL_BENCHMARK2x8(encode_integral2x8_scalar, 1024, 1024_uint64x2)
+#if defined(FAST_HEX_HAS_INT128)
+DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral16_scalar, __uint128_t, 1, 1_uint128)
+DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral16_scalar, __uint128_t, 1024, 1024_uint128)
 #endif
 
 #if defined(FAST_HEX_AVX) || defined(FAST_HEX_NEON)
@@ -366,12 +429,22 @@ DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, uint16_t, 8, 8_uint16)
 DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, uint16_t, 64, 64_uint16)
 DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, uint16_t, 1024, 1024_uint16)
 
+template <typename T>
+inline auto __attribute__((always_inline)) _decode_integral8_scalar(const uint8_t * src)
+{
+    return decode_integral8_scalar(src);
+}
+DEFINE_DECODE_INTEGRAL_BENCHMARK(_decode_integral8_scalar, uint64_t, 1, 1_uint64)
+DEFINE_DECODE_INTEGRAL_BENCHMARK(_decode_integral8_scalar, uint64_t, 1024, 1024_uint64)
+
 #if defined(FAST_HEX_AVX)
 template<typename T>
 inline auto __attribute__((always_inline)) _decode_integral8(const uint8_t* src)
 {
     return decode_integral8(src);
 }
+template <>
+constexpr Isa required_isa<&_decode_integral8<uint64_t>> = Isa::Avx;
 DEFINE_DECODE_INTEGRAL_BENCHMARK(_decode_integral8, uint64_t, 1, 1_uint64)
 DEFINE_DECODE_INTEGRAL_BENCHMARK(_decode_integral8, uint64_t, 8, 8_uint64)
 DEFINE_DECODE_INTEGRAL_BENCHMARK(_decode_integral8, uint64_t, 64, 64_uint64)
@@ -379,7 +452,6 @@ DEFINE_DECODE_INTEGRAL_BENCHMARK(_decode_integral8, uint64_t, 1024, 1024_uint64)
 #endif // defined(FAST_HEX_AVX)
 
 
-#endif // FAST_HEX_STATIC_SHARED_LIBRARY
 
 BENCHMARK_MAIN();
 

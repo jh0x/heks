@@ -1,9 +1,5 @@
-#ifdef FAST_HEX_STATIC_SHARED_LIBRARY
-#    include <fast_hex/fast_hex.hpp>
-#else
-#    include "fast_hex/fast_hex_inline.hpp"
-#endif
 #include "../cpu_features.hpp"
+#include "fast_hex/fast_hex_inline.hpp"
 
 #include <algorithm>
 #include <array>

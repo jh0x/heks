@@ -134,15 +134,11 @@ jobs:
       matrix:
         os: [ubuntu-26.04]
 
-        type: [shared, static]
-
         compiler: [gcc, clang-18, clang-19, clang-20, clang-21, clang-22]
 
         build_type: [Debug, Release]
 
         include:
-        - { type: shared, shared: YES }
-        - { type: static, shared: NO }
         - { compiler: gcc, cc: gcc, cxx: g++, tidy: clang-tidy-22 }
         - { compiler: clang-18, cc: clang-18, cxx: clang++-18, tidy: clang-tidy-18 }
         - { compiler: clang-19, cc: clang-19, cxx: clang++-19, tidy: clang-tidy-19 }
@@ -174,15 +170,10 @@ jobs:
     - name: Configure
       shell: pwsh
       run: cmake "--preset=ci-$("${{ matrix.os }}".split("-")[0])"
-        -D fast_hex_BUILD_SHARED_LIBS=${{ matrix.shared }}
         -D CMAKE_C_COMPILER=${{ matrix.cc }}
         -D CMAKE_CXX_COMPILER=${{ matrix.cxx }}
         -D CMAKE_BUILD_TYPE=${{ matrix.build_type }}
         -D "CMAKE_CXX_CLANG_TIDY=${{ matrix.tidy }};--header-filter=^${{ github.workspace }}/"
-
-    - name: Setup PATH
-      if: matrix.os == 'windows-2022' && matrix.type == 'shared'
-      run: Add-Content "$env:GITHUB_PATH" "$(Get-Location)\build\Release"
 
     - name: Build
       run: cmake --build build --config ${{ matrix.build_type }} -j 2

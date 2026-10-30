@@ -62,7 +62,7 @@ This project exports a CMake package to be used with the [`find_package`][3]
 command of CMake:
 
 * Package name: `fast_hex`
-* Target name: `fast_hex::fast_hex`
+* Target name: `fast_hex::headers` (header-only)
 
 Example usage:
 
@@ -72,7 +72,7 @@ find_package(fast_hex REQUIRED)
 # project_target is a target created in the consuming project
 target_link_libraries(
     project_target PRIVATE
-    fast_hex::fast_hex
+    fast_hex::headers
 )
 ```
 

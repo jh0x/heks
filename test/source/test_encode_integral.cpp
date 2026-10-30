@@ -93,26 +93,23 @@ static constexpr TestCase16 test_cases16[] = {
 
 struct TestCase2x8
 {
-    uint64_t input1;
-    uint64_t input2;
+    uint64_t input[2];
     std::string_view expected_lower;
     std::string_view expected_upper;
 };
 
-#if defined(FAST_HEX_AVX2)
 // clang-format off
 static constexpr TestCase2x8 test_cases2x8[] = {
-    {0x0011223344556677ULL, 0x8899AABBCCDDEEFFULL, "00112233445566778899aabbccddeeff"sv, "00112233445566778899AABBCCDDEEFF"sv},
-    {0xFFFFFFFFFFFFFFFFULL, 0xFFFFFFFFFFFFFFFFULL, "ffffffffffffffffffffffffffffffff"sv, "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"sv},
-    {0x123456789ABCDEF0ULL, 0x0FEDCBA987654321ULL, "123456789abcdef00fedcba987654321"sv, "123456789ABCDEF00FEDCBA987654321"sv},
-    {0xDEADBEEFDEADC0DEULL, 0xFEEDFACECAFEBABEULL, "deadbeefdeadc0defeedfacecafebabe"sv, "DEADBEEFDEADC0DEFEEDFACECAFEBABE"sv},
-    {0x0B00B13500BAD00BULL, 0xBAADF00DFEEDBABEULL, "0b00b13500bad00bbaadf00dfeedbabe"sv, "0B00B13500BAD00BBAADF00DFEEDBABE"sv},
-    {0x0102030405060708ULL, 0x090A0B0C0D0E0F10ULL, "0102030405060708090a0b0c0d0e0f10"sv, "0102030405060708090A0B0C0D0E0F10"sv},
-    {0xFFFFFFFF00000000ULL, 0x00000000FFFFFFFFULL, "ffffffff0000000000000000ffffffff"sv, "FFFFFFFF0000000000000000FFFFFFFF"sv},
-    {0x0000000000000001ULL, 0x1000000000000000ULL, "00000000000000011000000000000000"sv, "00000000000000011000000000000000"sv},
+    {{0x0011223344556677ULL, 0x8899AABBCCDDEEFFULL}, "00112233445566778899aabbccddeeff"sv, "00112233445566778899AABBCCDDEEFF"sv},
+    {{0xFFFFFFFFFFFFFFFFULL, 0xFFFFFFFFFFFFFFFFULL}, "ffffffffffffffffffffffffffffffff"sv, "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"sv},
+    {{0x123456789ABCDEF0ULL, 0x0FEDCBA987654321ULL}, "123456789abcdef00fedcba987654321"sv, "123456789ABCDEF00FEDCBA987654321"sv},
+    {{0xDEADBEEFDEADC0DEULL, 0xFEEDFACECAFEBABEULL}, "deadbeefdeadc0defeedfacecafebabe"sv, "DEADBEEFDEADC0DEFEEDFACECAFEBABE"sv},
+    {{0x0B00B13500BAD00BULL, 0xBAADF00DFEEDBABEULL}, "0b00b13500bad00bbaadf00dfeedbabe"sv, "0B00B13500BAD00BBAADF00DFEEDBABE"sv},
+    {{0x0102030405060708ULL, 0x090A0B0C0D0E0F10ULL}, "0102030405060708090a0b0c0d0e0f10"sv, "0102030405060708090A0B0C0D0E0F10"sv},
+    {{0xFFFFFFFF00000000ULL, 0x00000000FFFFFFFFULL}, "ffffffff0000000000000000ffffffff"sv, "FFFFFFFF0000000000000000FFFFFFFF"sv},
+    {{0x0000000000000001ULL, 0x1000000000000000ULL}, "00000000000000011000000000000000"sv, "00000000000000011000000000000000"sv},
 };
 // clang-format on
-#endif
 
 template <typename Fun, typename TC>
 void run_encode_integral_test(Fun encode_func, size_t outlength, const TC & test_cases)
@@ -133,6 +130,27 @@ void run_encode_integral_test(Fun encode_func, size_t outlength, const TC & test
 
         CAPTURE(i);
         CAPTURE(tc.input);
+        REQUIRE(result_lower == tc.expected_lower);
+        REQUIRE(result_upper == tc.expected_upper);
+    }
+}
+
+template <typename Fun>
+void run_encode_integral2x8_test(Fun encode_func)
+{
+    constexpr auto OutLength = 32;
+    for (size_t i = 0; i < std::size(test_cases2x8); i++)
+    {
+        const auto & tc = test_cases2x8[i];
+        uint8_t dest_lower[OutLength] = {};
+        uint8_t dest_upper[OutLength] = {};
+        encode_func(dest_lower, tc.input, lower);
+        encode_func(dest_upper, tc.input, upper);
+
+        std::string_view result_lower(reinterpret_cast<char *>(dest_lower), OutLength);
+        std::string_view result_upper(reinterpret_cast<char *>(dest_upper), OutLength);
+
+        CAPTURE(i);
         REQUIRE(result_lower == tc.expected_lower);
         REQUIRE(result_upper == tc.expected_upper);
     }
@@ -167,6 +185,20 @@ TEST_SUITE("encode_integral")
         run_encode_integral_test([](auto dst, auto input, auto c) { encode_integral_naive(dst, input, c); }, 32, test_cases16);
     }
 #endif
+    TEST_CASE("encode_integral 8 scalar")
+    {
+        run_encode_integral_test([](auto dst, auto input, auto c) { encode_integral8_scalar(dst, input, c); }, 16, test_cases8);
+    }
+#if defined(FAST_HEX_HAS_INT128)
+    TEST_CASE("encode_integral 16 scalar")
+    {
+        run_encode_integral_test([](auto dst, auto input, auto c) { encode_integral16_scalar(dst, input, c); }, 32, test_cases16);
+    }
+#endif
+    TEST_CASE("encode_integral 2x8 scalar")
+    {
+        run_encode_integral2x8_test([](auto dst, auto input, auto c) { encode_integral2x8_scalar(dst, input, c); });
+    }
 #if defined(FAST_HEX_AVX)
     TEST_CASE("encode_integral 8" * doctest::skip(!cpuHasAvx()))
     {
@@ -185,22 +217,7 @@ TEST_SUITE("encode_integral")
     }
     TEST_CASE("encode_integral 2x8" * doctest::skip(!cpuHasAvx2()))
     {
-        constexpr auto OutLength = 32;
-        for (size_t i = 0; i < std::size(test_cases2x8); i++)
-        {
-            const auto & tc = test_cases2x8[i];
-            uint8_t dest_lower[OutLength] = {};
-            uint8_t dest_upper[OutLength] = {};
-            encode_integral2x8(dest_lower, &tc.input1, lower);
-            encode_integral2x8(dest_upper, &tc.input1, upper);
-
-            std::string_view result_lower(reinterpret_cast<char *>(dest_lower), OutLength);
-            std::string_view result_upper(reinterpret_cast<char *>(dest_upper), OutLength);
-
-            CAPTURE(i);
-            REQUIRE(result_lower == tc.expected_lower);
-            REQUIRE(result_upper == tc.expected_upper);
-        }
+        run_encode_integral2x8_test([](auto dst, auto input, auto c) { encode_integral2x8(dst, input, c); });
     }
 #endif // defined(FAST_HEX_AVX2)
 }
@@ -263,6 +280,10 @@ TEST_SUITE("decode_integral")
     TEST_CASE("decode_integral 8 naive")
     {
         run_decode_integral_test(decode_integral_naive<uint64_t>, test_cases8);
+    }
+    TEST_CASE("decode_integral 8 scalar")
+    {
+        run_decode_integral_test(decode_integral8_scalar, test_cases8);
     }
 #if defined(FAST_HEX_AVX)
     TEST_CASE("decode_integral 8 AVX" * doctest::skip(!cpuHasAvx()))

@@ -13,9 +13,10 @@ include(GNUInstallDirs)
 # find_package(<package>) call for consumers to find this project
 set(package fast_hex)
 
-# Install header-only library unconditionally
 install(
-    FILES include/fast_hex/fast_hex_inline.hpp
+    FILES
+        include/fast_hex/fast_hex_common.hpp
+        include/fast_hex/fast_hex_inline.hpp
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/fast_hex"
     COMPONENT fast_hex_Development
 )
@@ -30,37 +31,6 @@ install(
         "${CMAKE_INSTALL_INCLUDEDIR}"
 )
 
-# Install library targets and full headers only if building libraries
-if(fast_hex_BUILD_LIBS)
-    install(
-        FILES include/fast_hex/fast_hex.hpp
-        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/fast_hex"
-        COMPONENT fast_hex_Development
-    )
-
-    install(
-        DIRECTORY "${PROJECT_BINARY_DIR}/export/"
-        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
-        COMPONENT fast_hex_Development
-    )
-
-    install(
-        TARGETS fast_hex_fast_hex
-        EXPORT fast_hexTargets
-        RUNTIME #
-            COMPONENT fast_hex_Runtime
-        LIBRARY #
-            COMPONENT fast_hex_Runtime
-            NAMELINK_COMPONENT fast_hex_Development
-        ARCHIVE #
-            COMPONENT fast_hex_Development
-        INCLUDES #
-        DESTINATION
-            "${CMAKE_INSTALL_INCLUDEDIR}"
-    )
-endif()
-
-# The package config is installed for header-only installs too, as it provides fast_hex::headers
 write_basic_package_version_file(
     "${package}ConfigVersion.cmake"
     COMPATIBILITY SameMajorVersion
