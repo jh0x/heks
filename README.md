@@ -32,19 +32,13 @@ and producing a corresponding binary data (in our example: `[0x48, 0x65, 0x6C, 0
 
 ## How to use it?
 
-CMake setup allows for two different types of usage:
+This is a header-only library: include
+[`fast_hex_inline.hpp`](https://github.com/jh0x/heks/blob/master/include/fast_hex/fast_hex_inline.hpp)
+and link the `fast_hex::headers` CMake target. As there are no external dependencies, one could also copy
+`fast_hex_inline.hpp` and `fast_hex_common.hpp` into a project. The compiler sees every function body, so it can
+inline them. To get a compiled library instead, build a `.cpp` that includes the header into one.
 
-- static/shared library (i.e. [`fast_hex.hpp`](https://github.com/jh0x/heks/blob/master/include/fast_hex/fast_hex.hpp))
-  (`fast_hex::fast_hex` target and `fast_hex_BUILD_LIBS` CMake variable)
-- header only library (i.e. [`fast_hex_inline.hpp`](https://github.com/jh0x/heks/blob/master/include/fast_hex/fast_hex_inline.hpp))
-  (`fast_hex::headers` target),
-
-One could also grab the desired files and use them directly as there are no external dependencies.
-
-### Static/shared library
-
-When `fast_hex_BUILD_LIBS` CMake flag is enabled static/shared libraries will be build (according
-to `fast_hex_BUILD_SHARED_LIBS`). The following functions are provided:
+### Functions
 
 #### Decoding
 
@@ -53,46 +47,58 @@ to `fast_hex_BUILD_SHARED_LIBS`). The following functions are provided:
 | `decodeHexLUT`              | Decodes hex string using a scalar look-up table. Requires a shift for decoding two chars at a time. |
 | `decodeHexLUT4`             | Similar to `decodeHexLUT`, but uses two look-up tables to avoid shifts.                        |
 | `decodeHexBMI`              | Scalar version that computes each nibble with bit operations instead of a lookup table. Plain C++, it does not need the BMI instruction set. |
-| `decodeHexAuto`             | Picks the fastest of the decoders below that the library was built with and the CPU supports, checked at runtime. Always available. |
+| `decodeHexAuto`             | Picks the fastest of the decoders below that are compiled in and the CPU supports, checked at runtime. Always available. |
 | `decodeHexVec`              | AVX2-optimized version for vectorized decoding. Can decode in parallel for better performance. |
-| `decodeHexVec512`           | AVX-512 (BW/VL/VBMI) version. Lengths under 32 use masked loads/stores and longer inputs end with an overlapping full block, so there is no scalar tail. |
+| `decodeHexVec512`           | AVX-512 (BW/VL/VBMI) version. Lengths under 32 use overlapping blocks with plain loads/stores (no masking, partly AVX2 code) and longer inputs end with an overlapping full block, so there is no scalar tail. |
 
 #### Encoding
 
 | Function                    | Description                                                                                   |
 |-----------------------------|-----------------------------------------------------------------------------------------------|
 | `encodeHexLower` / `encodeHexUpper` | Encodes bytes into a hex string. Each byte is converted into two hex characters.  |
-| `encodeHexLowerAuto` / `encodeHexUpperAuto` | Picks the fastest of the encoders below that the library was built with and the CPU supports, checked at runtime. Always available. |
+| `encodeHexLowerAuto` / `encodeHexUpperAuto` | Picks the fastest of the encoders below that are compiled in and the CPU supports, checked at runtime. Always available. |
 | `encodeHexLowerVec` / `encodeHexUpperVec`         | AVX2-optimized version for encoding.    |
 | `encodeHexLowerVec512` / `encodeHexUpperVec512`   | AVX-512 (BW/VL/VBMI) version for encoding. |
 | `encodeHexNeonLower` / `encodeHexNeonUpper`         | NEON-optimized version for encoding.    |
 | `encodeHex8LowerFast` / `encodeHex8UpperFast`| AVX-optimized version for inputs of length of exactly 8 bytes |
 | `encodeHex16LowerFast` / `encodeHex16UpperFast`| AVX2-optimized version for inputs of length of exactly 16 bytes |
+| `encodeHex8LowerScalar` / `encodeHex8UpperScalar`, `encodeHex16LowerScalar` / `encodeHex16UpperScalar` | Scalar versions of the 8 and 16 byte `Fast` functions. Run on any CPU. |
 | `encodeHex8LowerNeon` / `encodeHex8UpperNeon`| NEON-optimized version for inputs of length of exactly 8 bytes |
 
 On x86-64 with GCC or Clang all the AVX/AVX2/AVX-512 functions are always compiled in, each with its own
 target attribute, so no `-mavx*` flags or options are needed and the rest of the library runs on any x86-64 CPU.
 The `Auto` functions pick the path at runtime. Calling a SIMD function directly (including `encode_integral8`,
 `encode_integral16`, `encode_integral2x8` and `decode_integral8`) on a CPU without its instruction set crashes.
+`FAST_HEX_AVX`/`FAST_HEX_AVX2` only say the code is compiled in, not that the CPU can run it.
 AVX-512 here means AVX-512 BW/VL/VBMI. MSVC builds and 32-bit x86 builds only get the scalar functions.
+
+The fixed-size helpers also have `Scalar` / `_scalar` versions that run on any CPU, so callers can check the CPU
+once and pick. `encodeHex8*Fast`, `encode_integral8` and `decode_integral8` need AVX; `encodeHex16*Fast`,
+`encode_integral16` and `encode_integral2x8` need AVX2:
+
+```cpp
+#if defined(FAST_HEX_AVX2)
+const bool has_avx2 = __builtin_cpu_supports("avx2"); // the 16-byte / 2x8 helpers need AVX2, not just AVX
+#else
+const bool has_avx2 = false;
+#endif
+if (has_avx2)
+    encode_integral2x8(dest, pair, lower);
+else
+    encode_integral2x8_scalar(dest, pair, lower);
+```
 
 To leave a path out (e.g. for a toolchain without the AVX-512 VBMI intrinsics) define `FAST_HEX_NO_AVX`,
 `FAST_HEX_NO_AVX2` or `FAST_HEX_NO_AVX512`. These replace the old `fast_hex_ENABLE_AVX`/`fast_hex_ENABLE_AVX2`
-CMake options. Defining `FAST_HEX_AVX512=0` does not work, as only the `NO_` macros are checked. With the
-static/shared library the macro has to be defined both when building the library and in the code that includes
-`fast_hex.hpp`, otherwise the header declares functions the library does not have.
+CMake options. Defining `FAST_HEX_AVX512=0` does not work, as only the `NO_` macros are checked.
 
 `fast_hex_ENABLE_MARCH_NATIVE` (off by default) builds everything for the CPU of the build machine,
 so the result may not run on other CPUs.
 
-### Header only library
+### Templates picking the best algorithm
 
-It might be preferred if one wishes to give compiler more potential for optimization - as it will have
-the full visibility into the function declarations.
-
-In addition to the same set of functions as in case described above, the header only library provides
-two convenience functions that attempt to make it easier to select the "best" algorithm given the target architecture.
-On x86-64 they pick, at runtime, the fastest path the CPU supports:
+`encode_auto` and `decode_auto` (what `encodeHex*Auto` / `decodeHexAuto` call) pick the "best" algorithm
+for the target architecture. On x86-64 they pick, at runtime, the fastest path the CPU supports:
 
 ```cpp
 // For X64 prefer: encodeHexVec512, encodeHexVec, encodeHex
@@ -106,7 +112,7 @@ heks::encode_auto(dst, src, heks::RawLength{len}, heks::upper);
 heks::decode_auto(dst, src, heks::RawLength{len});
 ```
 
-Also the following functions are provided as header only:
+### Integral types
 
 #### Decoding of integral types (accounting for endianness)
 
@@ -114,6 +120,7 @@ Also the following functions are provided as header only:
 |----------|-------------|
 |  `decode_integral_naive` | Naive implementation that decodes hex string to integral type T by processing 2 hex chars per byte. |
 | `decode_integral8`       | AVX-optimized version that decodes 16 hex characters at once into an 8-byte integer using SIMD operations. |
+| `decode_integral8_scalar` | Scalar version of `decode_integral8`. Runs on any CPU. |
 
 #### Encoding of integral types (accounting for endianness)
 
@@ -124,6 +131,7 @@ Also the following functions are provided as header only:
 | `encode_integral8` (NEON) | NEON-optimized encoder for 64-bit integers. Uses NEON fast 8-byte encoding routine (`encodeHexNeon8_impl`) and reverses bytes at runtime if needed depending on host endianness. |
 | `encode_integral16` (AVX2) | AVX2-optimized encoder for 128-bit integral types. Converts a full 16-byte block using `encodeHex16Fast` routine with an appropriate shuffle mask. |
 | `encode_integral2x8` (AVX2) | AVX2-optimized function for encoding two consecutive 64-bit integers (2×8 bytes = 16 bytes) in one pass. Treats the pair as a contiguous 16-byte block and uses `encodeHex16Fast` routine with an appropriate shuffle mask. |
+| `encode_integral8_scalar` / `encode_integral16_scalar` / `encode_integral2x8_scalar` | Scalar versions of the three functions above. Run on any CPU. |
 
 The x86 SIMD functions (`Vec`, `Fast` and the AVX integral helpers) carry a target attribute, so the compiler only
 inlines them into code built for that instruction set: with `-mavx2` or `-march=x86-64-v3`, or inside a function

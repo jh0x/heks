@@ -1,9 +1,5 @@
-#ifdef FAST_HEX_STATIC_SHARED_LIBRARY
-#    include <fast_hex/fast_hex.hpp>
-#else
-#    include "fast_hex/fast_hex_inline.hpp"
-#endif
 #include "../cpu_features.hpp"
+#include "fast_hex/fast_hex_inline.hpp"
 
 #include <string>
 #include <string_view>
@@ -89,12 +85,10 @@ TEST_CASE("decodeHexBMI_invalid")
     testInvalidHexDecoding<decodeHexBMI>();
 }
 
-#ifndef FAST_HEX_STATIC_SHARED_LIBRARY
 TEST_CASE("decode_auto_invalid")
 {
     testInvalidHexDecoding<decode_auto>();
 }
-#endif
 
 TEST_CASE("decodeHexAuto_invalid")
 {
