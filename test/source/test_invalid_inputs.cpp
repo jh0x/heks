@@ -2,6 +2,7 @@
 #include "fast_hex/fast_hex_arm_neon.hpp"
 #include "fast_hex/fast_hex_x86_64_icelake.hpp"
 #include "fast_hex/fast_hex_x86_64_v3.hpp"
+#include "fast_hex/fast_hex_x86_64_v4.hpp"
 
 #include <string>
 #include <string_view>
@@ -87,6 +88,10 @@ TEST_CASE("decodeHexAvx2_invalid" * doctest::skip(!cpuHasAvx2()))
     testInvalidHexDecoding<decodeHexAvx2>();
 }
 
+TEST_CASE("decodeHexAvx512_invalid" * doctest::skip(!cpuHasAvx512()))
+{
+    testInvalidHexDecoding<decodeHexAvx512>();
+}
 TEST_CASE("decodeHexAvx512Vbmi_invalid" * doctest::skip(!cpuHasAvx512Vbmi()))
 {
     testInvalidHexDecoding<decodeHexAvx512Vbmi>();

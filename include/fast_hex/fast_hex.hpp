@@ -11,6 +11,8 @@
 //
 //   fast_hex_x86_64_v3.hpp       AVX2                            (FAST_HEX_X86_64)
 //       encodeHexAvx2, decodeHexAvx2, encodeHexIntAvx2, decodeHexIntAvx2, encodeHexInt2x8Avx2, cpuHasAvx2
+//   fast_hex_x86_64_v4.hpp       AVX-512 F, BW, CD, DQ and VL    (FAST_HEX_X86_64)
+//       encodeHexAvx512, decodeHexAvx512, cpuHasAvx512
 //   fast_hex_x86_64_icelake.hpp  AVX-512 F, BW, VL and VBMI      (FAST_HEX_X86_64)
 //       encodeHexAvx512Vbmi, decodeHexAvx512Vbmi, cpuHasAvx512Vbmi
 //   fast_hex_arm_neon.hpp        NEON                            (FAST_HEX_NEON)

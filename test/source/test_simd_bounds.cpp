@@ -2,6 +2,7 @@
 #include "fast_hex/fast_hex_arm_neon.hpp"
 #include "fast_hex/fast_hex_x86_64_icelake.hpp"
 #include "fast_hex/fast_hex_x86_64_v3.hpp"
+#include "fast_hex/fast_hex_x86_64_v4.hpp"
 
 #include <algorithm>
 #include <array>
@@ -196,6 +197,17 @@ TEST_CASE("hexAvx2_unaligned_buffers" * doctest::skip(!cpuHasAvx2()))
 TEST_CASE("hexAvx2_guarded_buffers" * doctest::skip(!cpuHasAvx2()))
 {
     testGuardedBuffers<encodeHexAvx2<lower_t>, encodeHexAvx2<upper_t>, decodeHexAvx2>();
+}
+#    endif
+
+TEST_CASE("hexAvx512_unaligned_buffers" * doctest::skip(!cpuHasAvx512()))
+{
+    testUnalignedBuffers<encodeHexAvx512<lower_t>, encodeHexAvx512<upper_t>, decodeHexAvx512>();
+}
+#    if defined(__unix__) || defined(__APPLE__)
+TEST_CASE("hexAvx512_guarded_buffers" * doctest::skip(!cpuHasAvx512()))
+{
+    testGuardedBuffers<encodeHexAvx512<lower_t>, encodeHexAvx512<upper_t>, decodeHexAvx512>();
 }
 #    endif
 

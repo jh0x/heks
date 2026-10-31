@@ -2,6 +2,7 @@
 #include "fast_hex/fast_hex_arm_neon.hpp"
 #include "fast_hex/fast_hex_x86_64_icelake.hpp"
 #include "fast_hex/fast_hex_x86_64_v3.hpp"
+#include "fast_hex/fast_hex_x86_64_v4.hpp"
 
 #include <algorithm>
 #include <array>

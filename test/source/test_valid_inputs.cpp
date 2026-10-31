@@ -2,6 +2,7 @@
 #include "fast_hex/fast_hex_arm_neon.hpp"
 #include "fast_hex/fast_hex_x86_64_icelake.hpp"
 #include "fast_hex/fast_hex_x86_64_v3.hpp"
+#include "fast_hex/fast_hex_x86_64_v4.hpp"
 
 #include <algorithm>
 #include <iomanip>
@@ -397,6 +398,19 @@ TEST_CASE("decodeHexAvx2_valid" * doctest::skip(!cpuHasAvx2()))
 TEST_CASE("hexAvx2_length_sweep" * doctest::skip(!cpuHasAvx2()))
 {
     testHexLengthSweep<encodeHexAvx2<lower_t>, encodeHexAvx2<upper_t>, decodeHexAvx2>();
+}
+
+TEST_CASE("encodeHexAvx512" * doctest::skip(!cpuHasAvx512()))
+{
+    testHexEncoding<encodeHexAvx512<lower_t>, encodeHexAvx512<upper_t>>();
+}
+TEST_CASE("decodeHexAvx512_valid" * doctest::skip(!cpuHasAvx512()))
+{
+    testHexDecoding<decodeHexAvx512>();
+}
+TEST_CASE("hexAvx512_length_sweep" * doctest::skip(!cpuHasAvx512()))
+{
+    testHexLengthSweep<encodeHexAvx512<lower_t>, encodeHexAvx512<upper_t>, decodeHexAvx512>();
 }
 
 TEST_CASE("encodeHexAvx512Vbmi" * doctest::skip(!cpuHasAvx512Vbmi()))

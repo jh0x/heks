@@ -3,6 +3,7 @@
 #include "fast_hex/fast_hex_arm_neon.hpp"
 #include "fast_hex/fast_hex_x86_64_icelake.hpp"
 #include "fast_hex/fast_hex_x86_64_v3.hpp"
+#include "fast_hex/fast_hex_x86_64_v4.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -54,6 +55,9 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * Data, size_t Size)
     static const bool has_avx2 = cpuHasAvx2();
     if (has_avx2)
         decode(decodeHexAvx2);
+    static const bool has_avx512 = cpuHasAvx512();
+    if (has_avx512)
+        decode(decodeHexAvx512);
     static const bool has_avx512_vbmi = cpuHasAvx512Vbmi();
     if (has_avx512_vbmi)
         decode(decodeHexAvx512Vbmi);

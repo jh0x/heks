@@ -6,7 +6,8 @@
 //   encodeHexAvx512Vbmi, decodeHexAvx512Vbmi
 //   cpuHasAvx512Vbmi
 //
-// VBMI is not part of x86-64-v4, so a -march=x86-64-v4 build is not enough for these.
+// VBMI is not part of x86-64-v4, so a -march=x86-64-v4 build is not enough for these. fast_hex_x86_64_v4.hpp
+// has versions without VBMI.
 
 #include "fast_hex_x86_64_v3.hpp" // Inputs under 32 bytes use the AVX2 code
 

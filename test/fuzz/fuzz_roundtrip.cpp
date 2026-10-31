@@ -3,6 +3,7 @@
 #include "fast_hex/fast_hex_arm_neon.hpp"
 #include "fast_hex/fast_hex_x86_64_icelake.hpp"
 #include "fast_hex/fast_hex_x86_64_v3.hpp"
+#include "fast_hex/fast_hex_x86_64_v4.hpp"
 
 #include <cassert>
 #include <cstddef>
@@ -18,6 +19,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * Data, size_t Size)
 {
 #if defined(FAST_HEX_X86_64)
     static const bool has_avx2 = cpuHasAvx2();
+    static const bool has_avx512 = cpuHasAvx512();
     static const bool has_avx512_vbmi = cpuHasAvx512Vbmi();
 #endif
     const std::size_t encoded_size = 2 * Size;
@@ -62,6 +64,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * Data, size_t Size)
 #if defined(FAST_HEX_X86_64)
         if (has_avx2)
             decode(encoded, decodeHexAvx2);
+        if (has_avx512)
+            decode(encoded, decodeHexAvx512);
         if (has_avx512_vbmi)
             decode(encoded, decodeHexAvx512Vbmi);
 #endif
@@ -74,6 +78,11 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * Data, size_t Size)
     {
         test_encode(encodeHexAvx2<lower_t>, lower, expected_lower);
         test_encode(encodeHexAvx2<upper_t>, upper, expected_upper);
+    }
+    if (has_avx512)
+    {
+        test_encode(encodeHexAvx512<lower_t>, lower, expected_lower);
+        test_encode(encodeHexAvx512<upper_t>, upper, expected_upper);
     }
     if (has_avx512_vbmi)
     {
