@@ -129,7 +129,8 @@ encodeHexNeonLarge(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RE
 
 // Up to 32 bytes without a loop, always inlined so that short inputs cost no call
 template <HexCase H>
-__attribute__((always_inline)) inline void encodeHexNeonImpl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, size_t len)
+__attribute__((always_inline)) inline void
+encodeHexNeonImpl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, size_t len)
 {
     const uint8x16_t lut = neonHexLut<H>();
     if (len > 32)
@@ -199,8 +200,7 @@ inline void decodeHexNeonShort(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t *
     else if (len > 0)
     {
         // Unrolled by hand: as a loop, Clang vectorizes it, which costs more than these few bytes
-        auto byte = [src](size_t i)
-        { return static_cast<uint8_t>((unhexBitManip(src[i * 2]) << 4) | unhexBitManip(src[i * 2 + 1])); };
+        auto byte = [src](size_t i) { return static_cast<uint8_t>((unhexBitManip(src[i * 2]) << 4) | unhexBitManip(src[i * 2 + 1])); };
         dest[0] = byte(0);
         if (len > 1)
             dest[1] = byte(1);
@@ -210,7 +210,8 @@ inline void decodeHexNeonShort(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t *
 }
 
 // len > 32. Out of line, with the same tail as encodeHexNeonLarge
-__attribute__((noinline)) inline void decodeHexNeonLarge(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, size_t len)
+__attribute__((noinline)) inline void
+decodeHexNeonLarge(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, size_t len)
 {
     size_t i = 0;
     for (; i + 16 <= len; i += 16)
@@ -219,7 +220,8 @@ __attribute__((noinline)) inline void decodeHexNeonLarge(uint8_t * FAST_HEX_REST
 }
 
 // Up to 32 bytes without a loop, always inlined so that short inputs cost no call
-__attribute__((always_inline)) inline void decodeHexNeonImpl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, size_t len)
+__attribute__((always_inline)) inline void
+decodeHexNeonImpl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, size_t len)
 {
     if (len > 32)
         return decodeHexNeonLarge(dest, src, len);
@@ -248,12 +250,14 @@ inline uint8x16_t reversed16(uint8x16_t in)
 } // namespace heks_detail
 
 template <class Case>
-__attribute__((always_inline)) inline void encodeHexNeon(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len, Case)
+__attribute__((always_inline)) inline void
+encodeHexNeon(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len, Case)
 {
     heks_detail::encodeHexNeonImpl<Case::value>(dest, src, static_cast<size_t>(len));
 }
 
-__attribute__((always_inline)) inline void decodeHexNeon(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
+__attribute__((always_inline)) inline void
+decodeHexNeon(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
     heks_detail::decodeHexNeonImpl(dest, src, static_cast<size_t>(len));
 }

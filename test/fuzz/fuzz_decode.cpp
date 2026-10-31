@@ -1,6 +1,7 @@
 // Header-only, so the code under test is compiled here with the sanitizer and coverage instrumentation
 #include "fast_hex/fast_hex.hpp"
 #include "fast_hex/fast_hex_arm_neon.hpp"
+#include "fast_hex/fast_hex_arm_sve.hpp"
 #include "fast_hex/fast_hex_x86_64_icelake.hpp"
 #include "fast_hex/fast_hex_x86_64_v3.hpp"
 #include "fast_hex/fast_hex_x86_64_v4.hpp"
@@ -76,6 +77,11 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * Data, size_t Size)
 #endif
 #if defined(FAST_HEX_NEON)
     decode(decodeHexNeon);
+#endif
+#if defined(FAST_HEX_ARM_SVE)
+    static const bool has_sve = cpuHasSve();
+    if (has_sve)
+        decode(decodeHexSve);
 #endif
     return 0;
 }

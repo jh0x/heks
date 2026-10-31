@@ -1,5 +1,6 @@
 #include "fast_hex/fast_hex.hpp"
 #include "fast_hex/fast_hex_arm_neon.hpp"
+#include "fast_hex/fast_hex_arm_sve.hpp"
 #include "fast_hex/fast_hex_x86_64_icelake.hpp"
 #include "fast_hex/fast_hex_x86_64_v3.hpp"
 #include "fast_hex/fast_hex_x86_64_v4.hpp"
@@ -129,5 +130,12 @@ TEST_CASE("decodeHexAvx512_matches_avx2_on_invalid" * doctest::skip(!cpuHasAvx2(
 TEST_CASE("decodeHexNeon_invalid")
 {
     testInvalidHexDecoding<decodeHexNeon>();
+}
+#endif
+
+#if defined(FAST_HEX_ARM_SVE)
+TEST_CASE("decodeHexSve_invalid" * doctest::skip(!cpuHasSve()))
+{
+    testInvalidHexDecoding<decodeHexSve>();
 }
 #endif

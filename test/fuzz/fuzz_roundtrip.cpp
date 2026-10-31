@@ -1,6 +1,7 @@
 // Header-only, so the code under test is compiled here with the sanitizer and coverage instrumentation
 #include "fast_hex/fast_hex.hpp"
 #include "fast_hex/fast_hex_arm_neon.hpp"
+#include "fast_hex/fast_hex_arm_sve.hpp"
 #include "fast_hex/fast_hex_x86_64_icelake.hpp"
 #include "fast_hex/fast_hex_x86_64_v3.hpp"
 #include "fast_hex/fast_hex_x86_64_v4.hpp"
@@ -21,6 +22,9 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * Data, size_t Size)
     static const bool has_avx2 = cpuHasAvx2();
     static const bool has_avx512 = cpuHasAvx512();
     static const bool has_avx512_vbmi = cpuHasAvx512Vbmi();
+#endif
+#if defined(FAST_HEX_ARM_SVE)
+    static const bool has_sve = cpuHasSve();
 #endif
     const std::size_t encoded_size = 2 * Size;
     const std::size_t decoded_size = Size;
@@ -73,6 +77,10 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * Data, size_t Size)
 #if defined(FAST_HEX_NEON)
         decode(encoded, decodeHexNeon);
 #endif
+#if defined(FAST_HEX_ARM_SVE)
+        if (has_sve)
+            decode(encoded, decodeHexSve);
+#endif
     };
 
     test_encode(encodeHex<lower_t>, lower, expected_lower);
@@ -97,6 +105,13 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * Data, size_t Size)
 #if defined(FAST_HEX_NEON)
     test_encode(encodeHexNeon<lower_t>, lower, expected_lower);
     test_encode(encodeHexNeon<upper_t>, upper, expected_upper);
+#endif
+#if defined(FAST_HEX_ARM_SVE)
+    if (has_sve)
+    {
+        test_encode(encodeHexSve<lower_t>, lower, expected_lower);
+        test_encode(encodeHexSve<upper_t>, upper, expected_upper);
+    }
 #endif
 
     return 0;

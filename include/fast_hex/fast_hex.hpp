@@ -16,11 +16,14 @@
 //   fast_hex_x86_64_icelake.hpp  AVX-512 F, BW, VL and VBMI      (FAST_HEX_X86_64)
 //       encodeHexAvx512Vbmi, decodeHexAvx512Vbmi, cpuHasAvx512Vbmi
 //   fast_hex_arm_neon.hpp        NEON                            (FAST_HEX_NEON)
-//       encodeHexNeon, encodeHexIntNeon, encodeHexInt2x8Neon
+//       encodeHexNeon, decodeHexNeon, encodeHexIntNeon, decodeHexIntNeon, encodeHexInt2x8Neon
+//   fast_hex_arm_sve.hpp         SVE                             (FAST_HEX_ARM_SVE)
+//       encodeHexSve, decodeHexSve, cpuHasSve
 //
-// Nothing here checks the CPU: the caller picks the function. The AVX2 and AVX-512 functions carry their
+// Nothing here checks the CPU: the caller picks the function. The AVX2, AVX-512 and SVE functions carry their
 // own target attributes, so they are compiled whatever the build flags. Calling one is only valid where the
-// CPU has the instruction set: in a build that already requires it, or behind a check such as cpuHasAvx2().
+// CPU has the instruction set: in a build that already requires it, or behind a check such as cpuHasAvx2() or
+// cpuHasSve().
 //
 // RawLength is the length of the raw (binary) data: encoding reads len bytes and writes len * 2 hex chars,
 // decoding reads len * 2 hex chars and writes len bytes. Encoding takes the case as heks::lower or heks::upper.
@@ -47,6 +50,18 @@
 
 #if defined(__ARM_NEON)
 #    define FAST_HEX_NEON 1
+#endif
+
+// SVE intrinsics in functions with target("+sve"), in a build not for SVE: GCC 14 and Clang 18 are the oldest
+// tested. No Apple CPU has SVE
+#if defined(__GNUC__) && defined(__aarch64__) && !defined(__APPLE__)
+#    if defined(__clang__)
+#        if __clang_major__ >= 18
+#            define FAST_HEX_ARM_SVE 1
+#        endif
+#    elif __GNUC__ >= 14
+#        define FAST_HEX_ARM_SVE 1
+#    endif
 #endif
 
 // This implementation is by https://github.com/zbjornson/fast-hex
