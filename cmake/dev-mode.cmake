@@ -1,5 +1,28 @@
 include(cmake/folders.cmake)
 
+# Must come before the test directory is added, so the flags reach its targets
+option(
+    fast_hex_ENABLE_SANITIZERS
+    "Build tests with AddressSanitizer and UndefinedBehaviorSanitizer"
+    OFF
+)
+if(fast_hex_ENABLE_SANITIZERS)
+    if(MSVC)
+        message(FATAL_ERROR "fast_hex_ENABLE_SANITIZERS needs GCC or Clang")
+    endif()
+    # The CI presets define _FORTIFY_SOURCE=3, whose checked libc calls bypass
+    # ASan's instrumentation. These options come after CMAKE_CXX_FLAGS_<CONFIG>
+    # on the command line, so the -U wins
+    add_compile_options(
+        -fsanitize=address,undefined
+        -fno-sanitize-recover=all
+        -fno-omit-frame-pointer
+        -g
+        -U_FORTIFY_SOURCE
+    )
+    add_link_options(-fsanitize=address,undefined)
+endif()
+
 include(CTest)
 if(BUILD_TESTING)
     add_subdirectory(test)
