@@ -131,8 +131,10 @@ void toHex(uint8_t * dest, const uint8_t * src, size_t size)
 Called from code built without AVX2, `encodeHexAvx2` is not inlined. That is fine for long inputs, but for many
 short ones (e.g. one call per row) check the CPU once and run the whole loop in a function built for AVX2, with
 `__attribute__((target("avx2")))` or a framework for it such as ClickHouse's `TargetSpecific`. The AVX2 functions
-then inline into it. Don't build that one file with `-march=x86-64-v3` instead: the plain inline functions it uses
-would then be compiled with AVX2 too, which is the problem the next paragraph describes.
+can then inline into it, but whether they do is still the compiler's call by size: clang keeps the AVX-512 decoders
+out of line, so that loop makes one call per row. Put `[[clang::always_inline]]` on the call to force it (GCC inlines
+them as is). Don't build that one file with `-march=x86-64-v3` instead: the plain inline functions it uses would then
+be compiled with AVX2 too, which is the problem the next paragraph describes.
 
 There are no functions that pick for you. All the functions are inline, so a picker compiled into files built with
 different flags would have one definition chosen by the linker, which could be the AVX2 one on a CPU without AVX2.
