@@ -49,6 +49,19 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * Data, size_t Size)
         }
     };
 
+    // Two decoders that compute the same unspecified bytes for invalid input must agree on the arbitrary input
+    [[maybe_unused]] auto agree = [&](auto decode_a, auto decode_b)
+    {
+        std::vector<uint8_t> a(decoded_size);
+        std::vector<uint8_t> b(decoded_size);
+        decode_a(a.data(), Data, RawLength{decoded_size});
+        decode_b(b.data(), Data, RawLength{decoded_size});
+        if (a != b)
+        {
+            std::abort();
+        }
+    };
+
     decode(decodeHex);
     decode(decodeHexLUT);
     decode(decodeHexLUT4);
@@ -59,18 +72,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * Data, size_t Size)
     static const bool has_avx512 = cpuHasAvx512();
     if (has_avx512)
         decode(decodeHexAvx512);
-    // The AVX2 and x86-64-v4 code compute the same unspecified bytes for invalid input, so they must agree
     if (has_avx2 && has_avx512)
-    {
-        std::vector<uint8_t> avx2(decoded_size);
-        std::vector<uint8_t> avx512(decoded_size);
-        decodeHexAvx2(avx2.data(), Data, RawLength{decoded_size});
-        decodeHexAvx512(avx512.data(), Data, RawLength{decoded_size});
-        if (avx2 != avx512)
-        {
-            std::abort();
-        }
-    }
+        agree(decodeHexAvx2, decodeHexAvx512);
     static const bool has_avx512_vbmi = cpuHasAvx512Vbmi();
     if (has_avx512_vbmi)
         decode(decodeHexAvx512Vbmi);
@@ -81,18 +84,9 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * Data, size_t Size)
 #if defined(FAST_HEX_ARM_SVE)
     static const bool has_sve = cpuHasSve();
     if (has_sve)
-        decode(decodeHexSve);
-    // decodeHexSve computes the unspecified bytes for invalid input as decodeHexNeon does, so they must agree
-    if (has_sve)
     {
-        std::vector<uint8_t> neon(decoded_size);
-        std::vector<uint8_t> sve(decoded_size);
-        decodeHexNeon(neon.data(), Data, RawLength{decoded_size});
-        decodeHexSve(sve.data(), Data, RawLength{decoded_size});
-        if (neon != sve)
-        {
-            std::abort();
-        }
+        decode(decodeHexSve);
+        agree(decodeHexNeon, decodeHexSve);
     }
 #endif
     return 0;

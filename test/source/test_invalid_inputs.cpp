@@ -8,6 +8,7 @@
 
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include <doctest/doctest.h>
 
@@ -106,22 +107,20 @@ TEST_CASE("decodeHexAvx512_matches_avx2_on_invalid" * doctest::skip(!cpuHasAvx2(
     std::string src(2 * 300, '\0');
     for (size_t i = 0; i < src.size(); ++i)
         src[i] = static_cast<char>((i * 131 + 7) ^ (i >> 3)); // A mix of hex and non-hex bytes, including 0x80-0xFF
-    for (const char fill : {'Z', '\xFF'})
+    const std::pair<const char *, std::string> inputs[] = {
+        {"mix", src}, {"all 'Z'", std::string(src.size(), 'Z')}, {"all 0xFF", std::string(src.size(), '\xFF')}};
+    for (const auto & [name, input] : inputs)
     {
-        const std::string uniform(src.size(), fill);
-        for (const std::string_view input : {std::string_view{src}, std::string_view{uniform}})
+        const auto * in = reinterpret_cast<const uint8_t *>(input.data());
+        for (size_t len = 0; len <= 300; ++len)
         {
-            for (size_t len = 0; len <= 300; ++len)
-            {
-                std::string avx2(len, '\0');
-                std::string avx512(len, '\0');
-                const auto * in = reinterpret_cast<const uint8_t *>(input.data());
-                decodeHexAvx2(reinterpret_cast<uint8_t *>(avx2.data()), in, RawLength{len});
-                decodeHexAvx512(reinterpret_cast<uint8_t *>(avx512.data()), in, RawLength{len});
-                CAPTURE(fill);
-                CAPTURE(len);
-                CHECK(avx2 == avx512);
-            }
+            std::string avx2(len, '\0');
+            std::string avx512(len, '\0');
+            decodeHexAvx2(reinterpret_cast<uint8_t *>(avx2.data()), in, RawLength{len});
+            decodeHexAvx512(reinterpret_cast<uint8_t *>(avx512.data()), in, RawLength{len});
+            CAPTURE(name);
+            CAPTURE(len);
+            CHECK(avx2 == avx512);
         }
     }
 }
@@ -147,25 +146,25 @@ TEST_CASE("decodeHexSve_matches_neon_on_invalid" * doctest::skip(!cpuHasSve()))
     std::string src(2 * 300, '\0');
     for (size_t i = 0; i < src.size(); ++i)
         src[i] = static_cast<char>((i * 131 + 7) ^ (i >> 3)); // A mix of hex and non-hex bytes, including 0x80-0xFF
+    const std::pair<const char *, std::string> inputs[] = {{"mix", src},
+                                                           {"all 'Z'", std::string(src.size(), 'Z')},
+                                                           {"all 'G'", std::string(src.size(), 'G')},
+                                                           {"all 0xFF", std::string(src.size(), '\xFF')}};
     heks_test::forEachSveVectorLength(
-        [&src]
+        [&inputs]
         {
-            for (const char fill : {'Z', 'G', '\xFF'})
+            for (const auto & [name, input] : inputs)
             {
-                const std::string uniform(src.size(), fill);
-                for (const std::string_view input : {std::string_view{src}, std::string_view{uniform}})
+                const auto * in = reinterpret_cast<const uint8_t *>(input.data());
+                for (size_t len = 0; len <= 300; ++len)
                 {
-                    for (size_t len = 0; len <= 300; ++len)
-                    {
-                        std::string neon(len, '\0');
-                        std::string sve(len, '\0');
-                        const auto * in = reinterpret_cast<const uint8_t *>(input.data());
-                        decodeHexNeon(reinterpret_cast<uint8_t *>(neon.data()), in, RawLength{len});
-                        decodeHexSve(reinterpret_cast<uint8_t *>(sve.data()), in, RawLength{len});
-                        CAPTURE(fill);
-                        CAPTURE(len);
-                        CHECK(neon == sve);
-                    }
+                    std::string neon(len, '\0');
+                    std::string sve(len, '\0');
+                    decodeHexNeon(reinterpret_cast<uint8_t *>(neon.data()), in, RawLength{len});
+                    decodeHexSve(reinterpret_cast<uint8_t *>(sve.data()), in, RawLength{len});
+                    CAPTURE(name);
+                    CAPTURE(len);
+                    CHECK(neon == sve);
                 }
             }
         });
