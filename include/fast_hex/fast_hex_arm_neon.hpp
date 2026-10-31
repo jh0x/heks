@@ -45,14 +45,22 @@ inline uint8x8_t neon_tbl(uint8x16_t lut, uint8x8_t idx)
 }
 #    endif
 
+// The 16 hex digits, as the tables of the NEON and SVE lookups
+// clang-format off
+alignas(16) inline constexpr uint8_t hex_digits_lower[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+alignas(16) inline constexpr uint8_t hex_digits_upper[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
+// clang-format on
+
+template <HexCase H>
+constexpr const uint8_t * hexDigits()
+{
+    return H == HexCase::Lower ? hex_digits_lower : hex_digits_upper;
+}
+
 template <HexCase H>
 inline uint8x16_t neonHexLut()
 {
-    // clang-format off
-    alignas(16) static constexpr uint8_t HEX_LUT_LOWER[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
-    alignas(16) static constexpr uint8_t HEX_LUT_UPPER[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
-    // clang-format on
-    return vld1q_u8(H == HexCase::Lower ? HEX_LUT_LOWER : HEX_LUT_UPPER);
+    return vld1q_u8(hexDigits<H>());
 }
 
 // 16 bytes -> 32 hex chars
@@ -199,8 +207,10 @@ inline void decodeHexNeonShort(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t *
     }
     else if (len > 0)
     {
-        // Unrolled by hand: as a loop, Clang vectorizes it, which costs more than these few bytes
-        auto byte = [src](size_t i) { return static_cast<uint8_t>((unhexBitManip(src[i * 2]) << 4) | unhexBitManip(src[i * 2 + 1])); };
+        // Unrolled by hand: as a loop, Clang vectorizes it, which costs more than these few bytes. The low nibble
+        // keeps only its 4 bits, as in the vector code's sli, so input that is not hex decodes the same at any length
+        auto byte
+            = [src](size_t i) { return static_cast<uint8_t>((unhexBitManip(src[i * 2]) << 4) | (unhexBitManip(src[i * 2 + 1]) & 0x0F)); };
         dest[0] = byte(0);
         if (len > 1)
             dest[1] = byte(1);

@@ -53,8 +53,9 @@
 #endif
 
 // SVE intrinsics in functions with target("+sve"), in a build not for SVE: GCC 14 and Clang 18 are the oldest
-// tested. No Apple CPU has SVE
-#if defined(__GNUC__) && defined(__aarch64__) && !defined(__APPLE__)
+// tested. The SVE functions run the NEON ones for short inputs, so a build without NEON (+nosimd) gets neither.
+// No Apple CPU has SVE
+#if defined(FAST_HEX_NEON) && defined(__GNUC__) && defined(__aarch64__) && !defined(__APPLE__)
 #    if defined(__clang__)
 #        if __clang_major__ >= 18
 #            define FAST_HEX_ARM_SVE 1

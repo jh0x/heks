@@ -82,6 +82,18 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * Data, size_t Size)
     static const bool has_sve = cpuHasSve();
     if (has_sve)
         decode(decodeHexSve);
+    // decodeHexSve computes the unspecified bytes for invalid input as decodeHexNeon does, so they must agree
+    if (has_sve)
+    {
+        std::vector<uint8_t> neon(decoded_size);
+        std::vector<uint8_t> sve(decoded_size);
+        decodeHexNeon(neon.data(), Data, RawLength{decoded_size});
+        decodeHexSve(sve.data(), Data, RawLength{decoded_size});
+        if (neon != sve)
+        {
+            std::abort();
+        }
+    }
 #endif
     return 0;
 }

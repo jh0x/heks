@@ -4,6 +4,7 @@
 #include "fast_hex/fast_hex_x86_64_icelake.hpp"
 #include "fast_hex/fast_hex_x86_64_v3.hpp"
 #include "fast_hex/fast_hex_x86_64_v4.hpp"
+#include "sve_vector_lengths.hpp"
 
 #include <string>
 #include <string_view>
@@ -136,6 +137,37 @@ TEST_CASE("decodeHexNeon_invalid")
 #if defined(FAST_HEX_ARM_SVE)
 TEST_CASE("decodeHexSve_invalid" * doctest::skip(!cpuHasSve()))
 {
-    testInvalidHexDecoding<decodeHexSve>();
+    heks_test::forEachSveVectorLength([] { testInvalidHexDecoding<decodeHexSve>(); });
+}
+
+// The output for invalid input is unspecified, but decodeHexSve computes it as decodeHexNeon does, which it runs up to
+// 32 bytes, so the output doesn't depend on the length. Covers the NEON paths, the SVE loop and its predicated tail.
+TEST_CASE("decodeHexSve_matches_neon_on_invalid" * doctest::skip(!cpuHasSve()))
+{
+    std::string src(2 * 300, '\0');
+    for (size_t i = 0; i < src.size(); ++i)
+        src[i] = static_cast<char>((i * 131 + 7) ^ (i >> 3)); // A mix of hex and non-hex bytes, including 0x80-0xFF
+    heks_test::forEachSveVectorLength(
+        [&src]
+        {
+            for (const char fill : {'Z', 'G', '\xFF'})
+            {
+                const std::string uniform(src.size(), fill);
+                for (const std::string_view input : {std::string_view{src}, std::string_view{uniform}})
+                {
+                    for (size_t len = 0; len <= 300; ++len)
+                    {
+                        std::string neon(len, '\0');
+                        std::string sve(len, '\0');
+                        const auto * in = reinterpret_cast<const uint8_t *>(input.data());
+                        decodeHexNeon(reinterpret_cast<uint8_t *>(neon.data()), in, RawLength{len});
+                        decodeHexSve(reinterpret_cast<uint8_t *>(sve.data()), in, RawLength{len});
+                        CAPTURE(fill);
+                        CAPTURE(len);
+                        CHECK(neon == sve);
+                    }
+                }
+            }
+        });
 }
 #endif

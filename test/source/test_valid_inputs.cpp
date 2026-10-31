@@ -4,6 +4,7 @@
 #include "fast_hex/fast_hex_x86_64_icelake.hpp"
 #include "fast_hex/fast_hex_x86_64_v3.hpp"
 #include "fast_hex/fast_hex_x86_64_v4.hpp"
+#include "sve_vector_lengths.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -447,14 +448,14 @@ TEST_CASE("hexNeon_length_sweep")
 #if defined(FAST_HEX_ARM_SVE)
 TEST_CASE("encodeHexSve" * doctest::skip(!cpuHasSve()))
 {
-    testHexEncoding<encodeHexSve<lower_t>, encodeHexSve<upper_t>>();
+    heks_test::forEachSveVectorLength([] { testHexEncoding<encodeHexSve<lower_t>, encodeHexSve<upper_t>>(); });
 }
 TEST_CASE("decodeHexSve_valid" * doctest::skip(!cpuHasSve()))
 {
-    testHexDecoding<decodeHexSve>();
+    heks_test::forEachSveVectorLength([] { testHexDecoding<decodeHexSve>(); });
 }
 TEST_CASE("hexSve_length_sweep" * doctest::skip(!cpuHasSve()))
 {
-    testHexLengthSweep<encodeHexSve<lower_t>, encodeHexSve<upper_t>, decodeHexSve>();
+    heks_test::forEachSveVectorLength([] { testHexLengthSweep<encodeHexSve<lower_t>, encodeHexSve<upper_t>, decodeHexSve>(); });
 }
 #endif
