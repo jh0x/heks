@@ -87,6 +87,8 @@ FAST_HEX_TARGET_AVX512 inline __m512i unhexPairs512(__m512i value)
 }
 
 // len >= 32
+// Invalid input can make a lane of unhexPairs512 exceed 255 (it is always in [0, 4335]). The tails narrow with
+// unsigned saturation so they give the same bytes as packus in the main loop, and as the AVX2 code.
 FAST_HEX_TARGET_AVX512 inline void decodeHexVec512Large(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, size_t len)
 {
     assert(len >= 32);
@@ -105,7 +107,7 @@ FAST_HEX_TARGET_AVX512 inline void decodeHexVec512Large(uint8_t * FAST_HEX_RESTR
     if (raw_length >= 32)
     {
         __m512i a = unhexPairs512(_mm512_loadu_si512(src));
-        _mm256_storeu_si256(reinterpret_cast<__m256i *>(dest), _mm512_cvtepi16_epi8(a));
+        _mm256_storeu_si256(reinterpret_cast<__m256i *>(dest), _mm512_cvtusepi16_epi8(a));
         src += 64;
         dest += 32;
         raw_length -= 32;
@@ -113,7 +115,7 @@ FAST_HEX_TARGET_AVX512 inline void decodeHexVec512Large(uint8_t * FAST_HEX_RESTR
     if (raw_length > 0)
     {
         __m512i a = unhexPairs512(_mm512_loadu_si512(src + raw_length * 2 - 64));
-        _mm256_storeu_si256(reinterpret_cast<__m256i *>(dest + raw_length - 32), _mm512_cvtepi16_epi8(a));
+        _mm256_storeu_si256(reinterpret_cast<__m256i *>(dest + raw_length - 32), _mm512_cvtusepi16_epi8(a));
     }
 }
 
@@ -124,7 +126,7 @@ FAST_HEX_TARGET_AVX512 inline void decodeHexVec512Impl(uint8_t * FAST_HEX_RESTRI
     {
         __m256i first = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(src));
         __m256i last = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(src + len * 2 - 32));
-        __m256i a = _mm512_cvtepi16_epi8(unhexPairs512(_mm512_inserti64x4(_mm512_castsi256_si512(first), last, 1)));
+        __m256i a = _mm512_cvtusepi16_epi8(unhexPairs512(_mm512_inserti64x4(_mm512_castsi256_si512(first), last, 1)));
         _mm_storeu_si128(reinterpret_cast<__m128i *>(dest), _mm256_castsi256_si128(a));
         _mm_storeu_si128(reinterpret_cast<__m128i *>(dest + len - 16), _mm256_extracti128_si256(a, 1));
     }

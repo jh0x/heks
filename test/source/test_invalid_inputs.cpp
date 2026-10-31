@@ -96,4 +96,31 @@ TEST_CASE("decodeHexAvx512Vbmi_invalid" * doctest::skip(!cpuHasAvx512Vbmi()))
 {
     testInvalidHexDecoding<decodeHexAvx512Vbmi>();
 }
+
+// The output for invalid input is unspecified, but the AVX2 and x86-64-v4 code compute it the same way, so
+// they must agree. Covers the 64-byte loop, the 32-byte step, the overlapping tail and the 17-31 byte path.
+TEST_CASE("decodeHexAvx512_matches_avx2_on_invalid" * doctest::skip(!cpuHasAvx2() || !cpuHasAvx512()))
+{
+    std::string src(2 * 300, '\0');
+    for (size_t i = 0; i < src.size(); ++i)
+        src[i] = static_cast<char>((i * 131 + 7) ^ (i >> 3)); // A mix of hex and non-hex bytes, including 0x80-0xFF
+    for (const char fill : {'Z', '\xFF'})
+    {
+        const std::string uniform(src.size(), fill);
+        for (const std::string_view input : {std::string_view{src}, std::string_view{uniform}})
+        {
+            for (size_t len = 0; len <= 300; ++len)
+            {
+                std::string avx2(len, '\0');
+                std::string avx512(len, '\0');
+                const auto * in = reinterpret_cast<const uint8_t *>(input.data());
+                decodeHexAvx2(reinterpret_cast<uint8_t *>(avx2.data()), in, RawLength{len});
+                decodeHexAvx512(reinterpret_cast<uint8_t *>(avx512.data()), in, RawLength{len});
+                CAPTURE(fill);
+                CAPTURE(len);
+                CHECK(avx2 == avx512);
+            }
+        }
+    }
+}
 #endif
