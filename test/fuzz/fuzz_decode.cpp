@@ -58,6 +58,18 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * Data, size_t Size)
     static const bool has_avx512 = cpuHasAvx512();
     if (has_avx512)
         decode(decodeHexAvx512);
+    // The AVX2 and x86-64-v4 code compute the same unspecified bytes for invalid input, so they must agree
+    if (has_avx2 && has_avx512)
+    {
+        std::vector<uint8_t> avx2(decoded_size);
+        std::vector<uint8_t> avx512(decoded_size);
+        decodeHexAvx2(avx2.data(), Data, RawLength{decoded_size});
+        decodeHexAvx512(avx512.data(), Data, RawLength{decoded_size});
+        if (avx2 != avx512)
+        {
+            std::abort();
+        }
+    }
     static const bool has_avx512_vbmi = cpuHasAvx512Vbmi();
     if (has_avx512_vbmi)
         decode(decodeHexAvx512Vbmi);
