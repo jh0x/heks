@@ -216,11 +216,17 @@ HEX_BENCHMARK(decodeHexAvx512Vbmi, false, Isa::Avx512Vbmi)
 
 #if defined(FAST_HEX_NEON)
 HEX_BENCHMARK(encodeHexNeon<lower_t>, true, Isa::None)
+HEX_BENCHMARK(decodeHexNeon, false, Isa::None)
 INT_BENCHMARK(uint64_t, encodeHexIntNeon, Isa::None)
 #    if defined(__SIZEOF_INT128__)
 INT_BENCHMARK(__uint128_t, encodeHexIntNeon, Isa::None)
 #    endif
 INT_BENCHMARK(UInt256, encodeHexIntNeon, Isa::None)
+INT_DECODE_BENCHMARK(uint64_t, decodeHexIntNeon, Isa::None)
+#    if defined(__SIZEOF_INT128__)
+INT_DECODE_BENCHMARK(__uint128_t, decodeHexIntNeon, Isa::None)
+#    endif
+INT_DECODE_BENCHMARK(UInt256, decodeHexIntNeon, Isa::None)
 #endif
 
 BENCHMARK_MAIN();

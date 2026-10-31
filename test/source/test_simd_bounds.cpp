@@ -226,12 +226,12 @@ TEST_CASE("hexAvx512Vbmi_guarded_buffers" * doctest::skip(!cpuHasAvx512Vbmi()))
 #if defined(FAST_HEX_NEON)
 TEST_CASE("hexNeon_unaligned_buffers")
 {
-    testUnalignedBuffers<encodeHexNeon<lower_t>, encodeHexNeon<upper_t>, decodeHex>();
+    testUnalignedBuffers<encodeHexNeon<lower_t>, encodeHexNeon<upper_t>, decodeHexNeon>();
 }
 #    if defined(__unix__) || defined(__APPLE__)
 TEST_CASE("hexNeon_guarded_buffers")
 {
-    testGuardedBuffers<encodeHexNeon<lower_t>, encodeHexNeon<upper_t>, decodeHex>();
+    testGuardedBuffers<encodeHexNeon<lower_t>, encodeHexNeon<upper_t>, decodeHexNeon>();
 }
 #    endif
 #endif

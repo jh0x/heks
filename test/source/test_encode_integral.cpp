@@ -307,4 +307,15 @@ TEST_SUITE("decodeHexInt")
         run_decode_integral_test(decode, test_cases32);
     }
 #endif
+#if defined(FAST_HEX_NEON)
+    TEST_CASE("decodeHexIntNeon")
+    {
+        auto decode = []<class T>(const uint8_t * src, std::type_identity<T>) { return decodeHexIntNeon<T>(src); };
+        run_decode_integral_test(decode, test_cases8);
+#    if defined(__SIZEOF_INT128__)
+        run_decode_integral_test(decode, test_cases16);
+#    endif
+        run_decode_integral_test(decode, test_cases32);
+    }
+#endif
 }
