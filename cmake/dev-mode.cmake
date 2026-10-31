@@ -28,10 +28,15 @@ if(fast_hex_ENABLE_BENCHMARK)
         INSTALL_DIR ${CMAKE_BINARY_DIR}/benchmark-install
         CMAKE_ARGS
             -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR> -DCMAKE_BUILD_TYPE=Release
+            -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
             -DBENCHMARK_ENABLE_TESTING=OFF -DBENCHMARK_ENABLE_GTEST_TESTS=OFF
             -DBENCHMARK_ENABLE_EXAMPLES=OFF -DBENCHMARK_INSTALL_DOCS=OFF
         BUILD_ALWAYS OFF
         INSTALL_COMMAND ""
+        # Ninja must know the libraries come from this step to order the build
+        BUILD_BYPRODUCTS
+            <BINARY_DIR>/src/libbenchmark.a
+            <BINARY_DIR>/src/libbenchmark_main.a
     )
 
     add_library(benchmark::benchmark STATIC IMPORTED GLOBAL) # Add GLOBAL here
