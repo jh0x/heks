@@ -5,6 +5,7 @@
 #include "fast_hex/fast_hex_x86_64_v4.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <iomanip>
 #include <sstream>
 #include <string>

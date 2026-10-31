@@ -388,4 +388,6 @@ FAST_HEX_TARGET_AVX2 void encodeHexInt2x8Avx2(uint8_t * dest, const T * first, C
 
 } // namespace heks
 
+#    undef FAST_HEX_TARGET_AVX2
+
 #endif // defined(FAST_HEX_X86_64)

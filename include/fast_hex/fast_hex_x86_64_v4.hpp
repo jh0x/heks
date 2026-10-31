@@ -158,4 +158,6 @@ FAST_HEX_TARGET_AVX512 inline void decodeHexAvx512(uint8_t * FAST_HEX_RESTRICT d
 
 } // namespace heks
 
+#    undef FAST_HEX_TARGET_AVX512
+
 #endif // defined(FAST_HEX_X86_64)
