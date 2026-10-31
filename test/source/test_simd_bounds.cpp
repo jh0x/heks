@@ -1,5 +1,7 @@
-#include "../cpu_features.hpp"
-#include "fast_hex/fast_hex_inline.hpp"
+#include "fast_hex/fast_hex.hpp"
+#include "fast_hex/fast_hex_arm_neon.hpp"
+#include "fast_hex/fast_hex_x86_64_icelake.hpp"
+#include "fast_hex/fast_hex_x86_64_v3.hpp"
 
 #include <algorithm>
 #include <array>
@@ -14,9 +16,7 @@
 #    include <sys/mman.h>
 #endif
 
-#if FAST_HEX_USE_NAMESPACE
 using namespace heks;
-#endif
 
 namespace
 {
@@ -82,9 +82,9 @@ void testUnalignedBuffers()
                 std::fill(std::begin(output), std::end(output), Canary);
             };
             std::memcpy(src, data.raw.data(), len);
-            EncodeLower(dest, src, RawLength{len});
+            EncodeLower(dest, src, RawLength{len}, lower);
             check(data.lower.data(), len * 2);
-            EncodeUpper(dest, src, RawLength{len});
+            EncodeUpper(dest, src, RawLength{len}, upper);
             check(data.upper.data(), len * 2);
             std::memcpy(src, data.mixed.data(), len * 2);
             Decode(dest, src, RawLength{len});
@@ -148,11 +148,11 @@ void testGuardedBuffers()
                 if (len != 0)
                     std::memcpy(src, data.raw.data(), len);
                 output.reset();
-                EncodeLower(dest, src, RawLength{len});
+                EncodeLower(dest, src, RawLength{len}, lower);
                 REQUIRE(std::equal(data.lower.begin(), data.lower.begin() + len * 2, dest));
                 REQUIRE(output.canariesIntact(dest, len * 2));
                 output.reset();
-                EncodeUpper(dest, src, RawLength{len});
+                EncodeUpper(dest, src, RawLength{len}, upper);
                 REQUIRE(std::equal(data.upper.begin(), data.upper.begin() + len * 2, dest));
                 REQUIRE(output.canariesIntact(dest, len * 2));
 
@@ -171,40 +171,55 @@ void testGuardedBuffers()
 #endif
 } // namespace
 
-#if defined(FAST_HEX_AVX2)
-TEST_CASE("hexVec_unaligned_buffers" * doctest::skip(!cpuHasAvx2()))
+// Scalar code can be vectorized by the compiler, so it gets checked too
+TEST_CASE("hex_unaligned_buffers")
 {
-    testUnalignedBuffers<encodeHexLowerVec, encodeHexUpperVec, decodeHexVec>();
-}
-#    if defined(__unix__) || defined(__APPLE__)
-TEST_CASE("hexVec_guarded_buffers" * doctest::skip(!cpuHasAvx2()))
-{
-    testGuardedBuffers<encodeHexLowerVec, encodeHexUpperVec, decodeHexVec>();
-}
-#    endif
-#endif
-
-#if defined(FAST_HEX_AVX512)
-TEST_CASE("hexVec512_unaligned_buffers" * doctest::skip(!cpuHasAvx512()))
-{
-    testUnalignedBuffers<encodeHexLowerVec512, encodeHexUpperVec512, decodeHexVec512>();
-}
-#    if defined(__unix__) || defined(__APPLE__)
-TEST_CASE("hexVec512_guarded_buffers" * doctest::skip(!cpuHasAvx512()))
-{
-    testGuardedBuffers<encodeHexLowerVec512, encodeHexUpperVec512, decodeHexVec512>();
-}
-#    endif
-#endif
-
-// Whichever path the CPU gets, it has to stay inside the buffers as well
-TEST_CASE("hexAuto_unaligned_buffers")
-{
-    testUnalignedBuffers<encodeHexLowerAuto, encodeHexUpperAuto, decodeHexAuto>();
+    testUnalignedBuffers<encodeHex<lower_t>, encodeHex<upper_t>, decodeHex>();
+    testUnalignedBuffers<encodeHex<lower_t>, encodeHex<upper_t>, decodeHexLUT>();
+    testUnalignedBuffers<encodeHex<lower_t>, encodeHex<upper_t>, decodeHexLUT4>();
 }
 #if defined(__unix__) || defined(__APPLE__)
-TEST_CASE("hexAuto_guarded_buffers")
+TEST_CASE("hex_guarded_buffers")
 {
-    testGuardedBuffers<encodeHexLowerAuto, encodeHexUpperAuto, decodeHexAuto>();
+    testGuardedBuffers<encodeHex<lower_t>, encodeHex<upper_t>, decodeHex>();
+    testGuardedBuffers<encodeHex<lower_t>, encodeHex<upper_t>, decodeHexLUT>();
+    testGuardedBuffers<encodeHex<lower_t>, encodeHex<upper_t>, decodeHexLUT4>();
 }
+#endif
+
+#if defined(FAST_HEX_X86_64)
+TEST_CASE("hexAvx2_unaligned_buffers" * doctest::skip(!cpuHasAvx2()))
+{
+    testUnalignedBuffers<encodeHexAvx2<lower_t>, encodeHexAvx2<upper_t>, decodeHexAvx2>();
+}
+#    if defined(__unix__) || defined(__APPLE__)
+TEST_CASE("hexAvx2_guarded_buffers" * doctest::skip(!cpuHasAvx2()))
+{
+    testGuardedBuffers<encodeHexAvx2<lower_t>, encodeHexAvx2<upper_t>, decodeHexAvx2>();
+}
+#    endif
+
+TEST_CASE("hexAvx512Vbmi_unaligned_buffers" * doctest::skip(!cpuHasAvx512Vbmi()))
+{
+    testUnalignedBuffers<encodeHexAvx512Vbmi<lower_t>, encodeHexAvx512Vbmi<upper_t>, decodeHexAvx512Vbmi>();
+}
+#    if defined(__unix__) || defined(__APPLE__)
+TEST_CASE("hexAvx512Vbmi_guarded_buffers" * doctest::skip(!cpuHasAvx512Vbmi()))
+{
+    testGuardedBuffers<encodeHexAvx512Vbmi<lower_t>, encodeHexAvx512Vbmi<upper_t>, decodeHexAvx512Vbmi>();
+}
+#    endif
+#endif
+
+#if defined(FAST_HEX_NEON)
+TEST_CASE("hexNeon_unaligned_buffers")
+{
+    testUnalignedBuffers<encodeHexNeon<lower_t>, encodeHexNeon<upper_t>, decodeHex>();
+}
+#    if defined(__unix__) || defined(__APPLE__)
+TEST_CASE("hexNeon_guarded_buffers")
+{
+    testGuardedBuffers<encodeHexNeon<lower_t>, encodeHexNeon<upper_t>, decodeHex>();
+}
+#    endif
 #endif

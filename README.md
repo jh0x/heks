@@ -1,18 +1,14 @@
 # Heks
 
-## Warning
-
 This is a fork of [zbjornson/fast-hex](https://github.com/zbjornson/fast-hex/) by Zach Bjornson
 with some CMake work (following closely [friendlyanon/cmake-init](https://github.com/friendlyanon/cmake-init) style),
 renaming and refactoring, testing (using [doctest](https://github.com/doctest/doctest)),
-fuzzing (LLVM) and benchmarking ([google/benchmark](https://github.com/google/benchmark))
-Specialized functions for encoding 8 and 16 bytes have been added as well as NEON
-encoder.
+fuzzing (LLVM) and benchmarking ([google/benchmark](https://github.com/google/benchmark)).
+It adds AVX-512 and NEON encoders, AVX-512 decoders, and encoders and decoders for 8, 16 and 32-byte integers.
 
 ## What is it?
 
-This library provides a set of hexadecimal encoding and decoding functionality
-for various CPU architectures.
+Hexadecimal encoding and decoding for x86-64 (scalar, AVX2, AVX-512) and ARM (scalar, NEON).
 
 By **encoding** we understand taking input binary data (e.g. `[0x48, 0x65, 0x6C, 0x6C, 0x6F]`)
 and producing an output hex string (from our previous example: `48656C6C6F` or `48656c6c6f`).
@@ -20,126 +16,124 @@ and producing an output hex string (from our previous example: `48656C6C6F` or `
 By **decoding** we understand taking an input hex string (e.g. `48656C6C6F` or `48656c6c6f`)
 and producing a corresponding binary data (in our example: `[0x48, 0x65, 0x6C, 0x6C, 0x6F]`).
 
-### Constraints and requirements
-
-- Input parameters cannot be `nullptr`.
-- Input parameters should not alias - as we are using `__restrict__`.
-- All functions take `RawLength` parameter. This is always the length of the binary data
-  (hence it is output for encoding or input for decoding). As a consequence,
-  when encoding we will read `2 * RawLength` bytes.
-- There is no checking whether input hex string for decoding is valid. In case of invalid
-  inputs for decoding the result will be undefined.
-
 ## How to use it?
 
-This is a header-only library: include
-[`fast_hex_inline.hpp`](https://github.com/jh0x/heks/blob/master/include/fast_hex/fast_hex_inline.hpp)
-and link the `fast_hex::headers` CMake target. As there are no external dependencies, one could also copy
-`fast_hex_inline.hpp` and `fast_hex_common.hpp` into a project. The compiler sees every function body, so it can
-inline them. To get a compiled library instead, build a `.cpp` that includes the header into one.
+This is a header-only C++20 library: include the headers for the instruction sets you want and link the
+`fast_hex::headers` CMake target, or copy the headers from [`include/fast_hex`](include/fast_hex) into a project.
+Everything is in namespace `heks`.
+
+| Header | Functions for | Runs on |
+|--------|---------------|---------|
+| [`fast_hex.hpp`](include/fast_hex/fast_hex.hpp) | any CPU | any CPU |
+| [`fast_hex_x86_64_v3.hpp`](include/fast_hex/fast_hex_x86_64_v3.hpp) | AVX2 | Haswell, Zen 1 and later |
+| [`fast_hex_x86_64_icelake.hpp`](include/fast_hex/fast_hex_x86_64_icelake.hpp) | AVX-512 F, BW, VL and VBMI | Ice Lake, Zen 4 and later, but not Skylake-X or Cascade Lake |
+| [`fast_hex_arm_neon.hpp`](include/fast_hex/fast_hex_arm_neon.hpp) | NEON | AArch64, ARMv7 with NEON |
+
+Each ISA header includes the ones it builds on. On other platforms it is empty, so it can be included
+unconditionally. VBMI is not part of x86-64-v4, so a `-march=x86-64-v4` build is not enough for
+the icelake functions.
+
+```cpp
+#include <fast_hex/fast_hex.hpp>
+
+uint8_t hex[10];
+heks::encodeHex(hex, data, heks::RawLength{5}, heks::upper);   // "48656C6C6F"
+heks::decodeHex(data, hex, heks::RawLength{5});
+
+uint8_t id[32];
+heks::encodeHexInt(id, uint128_value, heks::lower);            // 32 hex chars, most significant first
+auto value = heks::decodeHexInt<unsigned __int128>(id);        // and back
+```
 
 ### Functions
 
-#### Decoding
+| Function | Header | Available when |
+|----------|--------|----------------|
+| `encodeHex(dest, src, len, case)` | `fast_hex.hpp` | always |
+| `decodeHex(dest, src, len)` | `fast_hex.hpp` | always |
+| `decodeHexLUT(dest, src, len)`, `decodeHexLUT4(dest, src, len)` | `fast_hex.hpp` | always |
+| `encodeHexInt(dest, value, case)`, `decodeHexInt<T>(src)` | `fast_hex.hpp` | always |
+| `encodeHexInt2x8(dest, first, case)` | `fast_hex.hpp` | always |
+| `encodeHexAvx2(dest, src, len, case)`, `decodeHexAvx2(dest, src, len)` | `fast_hex_x86_64_v3.hpp` | `FAST_HEX_X86_64` |
+| `encodeHexIntAvx2(dest, value, case)`, `decodeHexIntAvx2<T>(src)` | `fast_hex_x86_64_v3.hpp` | `FAST_HEX_X86_64` |
+| `encodeHexInt2x8Avx2(dest, first, case)` | `fast_hex_x86_64_v3.hpp` | `FAST_HEX_X86_64` |
+| `cpuHasAvx2()` | `fast_hex_x86_64_v3.hpp` | `FAST_HEX_X86_64` |
+| `encodeHexAvx512Vbmi(dest, src, len, case)`, `decodeHexAvx512Vbmi(dest, src, len)` | `fast_hex_x86_64_icelake.hpp` | `FAST_HEX_X86_64` |
+| `cpuHasAvx512Vbmi()` | `fast_hex_x86_64_icelake.hpp` | `FAST_HEX_X86_64` |
+| `encodeHexNeon(dest, src, len, case)` | `fast_hex_arm_neon.hpp` | `FAST_HEX_NEON` |
+| `encodeHexIntNeon(dest, value, case)`, `encodeHexInt2x8Neon(dest, first, case)` | `fast_hex_arm_neon.hpp` | `FAST_HEX_NEON` |
 
-| Function                    | Description                                                                                   |
-|-----------------------------|-----------------------------------------------------------------------------------------------|
-| `decodeHexLUT`              | Decodes hex string using a scalar look-up table. Requires a shift for decoding two chars at a time. |
-| `decodeHexLUT4`             | Similar to `decodeHexLUT`, but uses two look-up tables to avoid shifts.                        |
-| `decodeHexBMI`              | Scalar version that computes each nibble with bit operations instead of a lookup table. Plain C++, it does not need the BMI instruction set. |
-| `decodeHexAuto`             | Picks the fastest of the decoders below that are compiled in and the CPU supports, checked at runtime. Always available. |
-| `decodeHexVec`              | AVX2-optimized version for vectorized decoding. Can decode in parallel for better performance. |
-| `decodeHexVec512`           | AVX-512 (BW/VL/VBMI) version. Lengths under 32 use overlapping blocks with plain loads/stores (no masking, partly AVX2 code) and longer inputs end with an overlapping full block, so there is no scalar tail. |
+`FAST_HEX_X86_64` is defined for GCC and Clang on x86-64. MSVC and 32-bit x86 only get the scalar functions.
+`FAST_HEX_NEON` is defined when the compiler targets NEON (`__ARM_NEON`).
 
-#### Encoding
+The three scalar decoders suit different lengths:
 
-| Function                    | Description                                                                                   |
-|-----------------------------|-----------------------------------------------------------------------------------------------|
-| `encodeHexLower` / `encodeHexUpper` | Encodes bytes into a hex string. Each byte is converted into two hex characters.  |
-| `encodeHexLowerAuto` / `encodeHexUpperAuto` | Picks the fastest of the encoders below that are compiled in and the CPU supports, checked at runtime. Always available. |
-| `encodeHexLowerVec` / `encodeHexUpperVec`         | AVX2-optimized version for encoding.    |
-| `encodeHexLowerVec512` / `encodeHexUpperVec512`   | AVX-512 (BW/VL/VBMI) version for encoding. |
-| `encodeHexNeonLower` / `encodeHexNeonUpper`         | NEON-optimized version for encoding.    |
-| `encodeHex8LowerFast` / `encodeHex8UpperFast`| AVX-optimized version for inputs of length of exactly 8 bytes |
-| `encodeHex16LowerFast` / `encodeHex16UpperFast`| AVX2-optimized version for inputs of length of exactly 16 bytes |
-| `encodeHex8LowerScalar` / `encodeHex8UpperScalar`, `encodeHex16LowerScalar` / `encodeHex16UpperScalar` | Scalar versions of the 8 and 16 byte `Fast` functions. Run on any CPU. |
-| `encodeHex8LowerNeon` / `encodeHex8UpperNeon`| NEON-optimized version for inputs of length of exactly 8 bytes |
+- `decodeHex` computes each nibble with arithmetic, so the compiler turns it into vector code: Clang from `-O2`,
+  GCC only at `-O3`. It is the fastest scalar decoder from about 8 bytes up, or 16 when the length is not a
+  multiple of 8, as it then decodes the last bytes one at a time. There is no NEON decoder, as `decodeHex` is
+  vectorized on ARM too.
+- `decodeHexLUT` and `decodeHexLUT4` look each char up in a table, so they are never vectorized. They are faster
+  for shorter inputs, and with GCC at `-O2`. `decodeHexLUT4` also looks up the high nibble already shifted.
 
-On x86-64 with GCC or Clang all the AVX/AVX2/AVX-512 functions are always compiled in, each with its own
-target attribute, so no `-mavx*` flags or options are needed and the rest of the library runs on any x86-64 CPU.
-The `Auto` functions pick the path at runtime. Calling a SIMD function directly (including `encode_integral8`,
-`encode_integral16`, `encode_integral2x8` and `decode_integral8`) on a CPU without its instruction set crashes.
-`FAST_HEX_AVX`/`FAST_HEX_AVX2` only say the code is compiled in, not that the CPU can run it.
-AVX-512 here means AVX-512 BW/VL/VBMI. MSVC builds and 32-bit x86 builds only get the scalar functions.
+On x86-64 with Clang, decoding 1 to 3 bytes takes about 1 to 3 ns with `decodeHexLUT4` against 2 to 5 ns with
+`decodeHex` or `decodeHexAvx2`. `decodeHexAvx2` is the fastest from about 7 bytes.
 
-The fixed-size helpers also have `Scalar` / `_scalar` versions that run on any CPU, so callers can check the CPU
-once and pick. `encodeHex8*Fast`, `encode_integral8` and `decode_integral8` need AVX; `encodeHex16*Fast`,
-`encode_integral16` and `encode_integral2x8` need AVX2:
+### Contract
+
+- `RawLength` is the length of the binary data. Encoding reads `len` bytes and writes `len * 2` hex chars.
+  Decoding reads `len * 2` hex chars and writes `len` bytes. No function reads or writes outside those ranges.
+- `case` is `heks::lower` or `heks::upper`. Decoding accepts either case, mixed too.
+- Decoding does not validate its input: chars that are not hex decode to unspecified bytes, but never cause
+  undefined behavior.
+- Pointers must be valid for those ranges, and source and destination must not overlap.
+- `encodeHexInt*` take any integer type stored in native byte order that can be copied with `memcpy`, including
+  `unsigned __int128` and 256-bit integer classes, and write `sizeof(T) * 2` hex chars, most significant first.
+  `decodeHexInt*<T>` read `sizeof(T) * 2` hex chars, most significant first, and return the `T`. The SIMD versions
+  take 8, 16 and 32-byte types.
+- `encodeHexInt2x8*` take a pointer to two 8-byte integers and write 32 hex chars: `first[0]` then `first[1]`,
+  each most significant first. This is not `encodeHexInt` of a 16-byte value, which on little-endian would write
+  `first[1]` first.
+
+### Picking a function
+
+The library never checks the CPU: the caller picks the function. The AVX2 and AVX-512 functions carry their own
+target attributes, so they are always compiled in and need no build flags, but calling one is only valid on a CPU
+that has the instruction set. Either:
+
+- call it from code that already requires the instruction set, e.g. a build with `-march=x86-64-v3`, or
+- check once with `cpuHasAvx2()` or `cpuHasAvx512Vbmi()` and pick:
 
 ```cpp
-#if defined(FAST_HEX_AVX2)
-const bool has_avx2 = __builtin_cpu_supports("avx2"); // the 16-byte / 2x8 helpers need AVX2, not just AVX
+#include <fast_hex/fast_hex.hpp>
+#include <fast_hex/fast_hex_arm_neon.hpp>
+#include <fast_hex/fast_hex_x86_64_v3.hpp>
+
+void toHex(uint8_t * dest, const uint8_t * src, size_t size)
+{
+    const heks::RawLength len{size};
+#if defined(FAST_HEX_X86_64)
+    static const bool has_avx2 = heks::cpuHasAvx2();
+    if (has_avx2)
+        heks::encodeHexAvx2(dest, src, len, heks::lower);
+    else
+        heks::encodeHex(dest, src, len, heks::lower);
+#elif defined(FAST_HEX_NEON)
+    heks::encodeHexNeon(dest, src, len, heks::lower);
 #else
-const bool has_avx2 = false;
+    heks::encodeHex(dest, src, len, heks::lower);
 #endif
-if (has_avx2)
-    encode_integral2x8(dest, pair, lower);
-else
-    encode_integral2x8_scalar(dest, pair, lower);
+}
 ```
 
-To leave a path out (e.g. for a toolchain without the AVX-512 VBMI intrinsics) define `FAST_HEX_NO_AVX`,
-`FAST_HEX_NO_AVX2` or `FAST_HEX_NO_AVX512`. These replace the old `fast_hex_ENABLE_AVX`/`fast_hex_ENABLE_AVX2`
-CMake options. Defining `FAST_HEX_AVX512=0` does not work, as only the `NO_` macros are checked.
+Called from code built without AVX2, `encodeHexAvx2` is not inlined. That is fine for long inputs, but for many
+short ones (e.g. one call per row) check the CPU once and run the whole loop in a function built for AVX2, with
+`__attribute__((target("avx2")))` or a framework for it such as ClickHouse's `TargetSpecific`. The AVX2 functions
+then inline into it. Don't build that one file with `-march=x86-64-v3` instead: the plain inline functions it uses
+would then be compiled with AVX2 too, which is the problem the next paragraph describes.
 
-`fast_hex_ENABLE_MARCH_NATIVE` (off by default) builds everything for the CPU of the build machine,
-so the result may not run on other CPUs.
-
-### Templates picking the best algorithm
-
-`encode_auto` and `decode_auto` (what `encodeHex*Auto` / `decodeHexAuto` call) pick the "best" algorithm
-for the target architecture. On x86-64 they pick, at runtime, the fastest path the CPU supports:
-
-```cpp
-// For X64 prefer: encodeHexVec512, encodeHexVec, encodeHex
-// For ARM with NEON: encodeHexNeon
-// Otherwise: encodeHex
-heks::encode_auto(dst, src, heks::RawLength{len}, heks::upper);
-
-// For X64 prefer: decodeHexVec512, decodeHexVec, decodeHexBMI, decodeHexLUT4
-// For ARM prefer: decodeHexBMI, decodeHexLut
-// Otherwise: decodeHexLUT4
-heks::decode_auto(dst, src, heks::RawLength{len});
-```
-
-### Integral types
-
-#### Decoding of integral types (accounting for endianness)
-
-| Function | Description |
-|----------|-------------|
-|  `decode_integral_naive` | Naive implementation that decodes hex string to integral type T by processing 2 hex chars per byte. |
-| `decode_integral8`       | AVX-optimized version that decodes 16 hex characters at once into an 8-byte integer using SIMD operations. |
-| `decode_integral8_scalar` | Scalar version of `decode_integral8`. Runs on any CPU. |
-
-#### Encoding of integral types (accounting for endianness)
-
-| Function | Description |
-|----------|-------------|
-| `encode_integral_naive` | Generic, portable implementation for encoding any integral type (8–128 bitintegers) into hex. Handles machine endianness explicitly using byte-by-byte extraction. Uses a lookup table for upper/lower hex. |
-| `encode_integral8` (AVX) | AVX-optimized encoder for 64-bit integers. Performs a 64-bit byte swap (to normalize endianness) and then routes the 8-byte block into `encodeHex8Fast` routine. |
-| `encode_integral8` (NEON) | NEON-optimized encoder for 64-bit integers. Uses NEON fast 8-byte encoding routine (`encodeHexNeon8_impl`) and reverses bytes at runtime if needed depending on host endianness. |
-| `encode_integral16` (AVX2) | AVX2-optimized encoder for 128-bit integral types. Converts a full 16-byte block using `encodeHex16Fast` routine with an appropriate shuffle mask. |
-| `encode_integral2x8` (AVX2) | AVX2-optimized function for encoding two consecutive 64-bit integers (2×8 bytes = 16 bytes) in one pass. Treats the pair as a contiguous 16-byte block and uses `encodeHex16Fast` routine with an appropriate shuffle mask. |
-| `encode_integral8_scalar` / `encode_integral16_scalar` / `encode_integral2x8_scalar` | Scalar versions of the three functions above. Run on any CPU. |
-
-The x86 SIMD functions (`Vec`, `Fast` and the AVX integral helpers) carry a target attribute, so the compiler only
-inlines them into code built for that instruction set: with `-mavx2` or `-march=x86-64-v3`, or inside a function
-marked `__attribute__((target("avx2")))` (ClickHouse wraps its callers in `#pragma clang attribute push` for this).
-Called from code built with the default flags, each one is a real function call.
-
-The `Auto` functions check the CPU on every call. That costs little, but for many short inputs it is faster to check
-once (e.g. with `__builtin_cpu_supports`) and run the whole loop in a function built for AVX2.
+There are no functions that pick for you. All the functions are inline, so a picker compiled into files built with
+different flags would have one definition chosen by the linker, which could be the AVX2 one on a CPU without AVX2.
+The caller knows its build flags and is the one place where the choice is safe.
 
 ## How to develop?
 
@@ -254,8 +248,8 @@ Typical variables you might want to tweak:
 
 - `fast_hex_ENABLE_FUZZ` - whether to build fuzzing tests in `test/fuzz`.
 - `fast_hex_ENABLE_BENCHMARK` - whether to build benchmarks in `test/benchmark`.
-- `fast_hex_ENABLE_MARCH_NATIVE` - build everything for the CPU of the build machine. It used to be on by default,
-  so turn it on when comparing benchmark results with older builds.
+- `fast_hex_ENABLE_MARCH_NATIVE` - build the tests, fuzzers and benchmarks for the CPU of the build machine.
+  It used to be on by default, so turn it on when comparing benchmark results with older builds.
 
 [1]: https://cmake.org/cmake/help/latest/manual/cmake-presets.7.html
 [2]: https://cmake.org/download/

@@ -1,5 +1,7 @@
-#include "../cpu_features.hpp"
-#include "fast_hex/fast_hex_inline.hpp"
+#include "fast_hex/fast_hex.hpp"
+#include "fast_hex/fast_hex_arm_neon.hpp"
+#include "fast_hex/fast_hex_x86_64_icelake.hpp"
+#include "fast_hex/fast_hex_x86_64_v3.hpp"
 
 #include <algorithm>
 #include <iomanip>
@@ -10,9 +12,7 @@
 
 #include <doctest/doctest.h>
 
-#if FAST_HEX_USE_NAMESPACE
 using namespace heks;
-#endif
 
 using namespace std::string_view_literals;
 
@@ -257,9 +257,15 @@ void testHexEncoding()
         output_upper.resize(raw_str.size() * 2);
 
         EncodingFuncLower(
-            reinterpret_cast<uint8_t *>(output_lower.data()), reinterpret_cast<const uint8_t *>(raw_str.data()), RawLength{raw_str.size()});
+            reinterpret_cast<uint8_t *>(output_lower.data()),
+            reinterpret_cast<const uint8_t *>(raw_str.data()),
+            RawLength{raw_str.size()},
+            lower);
         EncodingFuncUpper(
-            reinterpret_cast<uint8_t *>(output_upper.data()), reinterpret_cast<const uint8_t *>(raw_str.data()), RawLength{raw_str.size()});
+            reinterpret_cast<uint8_t *>(output_upper.data()),
+            reinterpret_cast<const uint8_t *>(raw_str.data()),
+            RawLength{raw_str.size()},
+            upper);
 
         CAPTURE(i);
         REQUIRE(output_lower == expected_lower);
@@ -330,16 +336,16 @@ void testHexLengthSweep()
         CAPTURE(len);
         std::vector<uint8_t> expected_lower(len * 2);
         std::vector<uint8_t> expected_upper(len * 2);
-        encodeHexLower(expected_lower.data(), raw.data(), RawLength{len});
-        encodeHexUpper(expected_upper.data(), raw.data(), RawLength{len});
+        encodeHex(expected_lower.data(), raw.data(), RawLength{len}, lower);
+        encodeHex(expected_upper.data(), raw.data(), RawLength{len}, upper);
 
         std::vector<uint8_t> out(len * 2 + 1, Canary);
-        EncodingFuncLower(out.data(), raw.data(), RawLength{len});
+        EncodingFuncLower(out.data(), raw.data(), RawLength{len}, lower);
         REQUIRE(std::equal(expected_lower.begin(), expected_lower.end(), out.begin()));
         REQUIRE(out[len * 2] == Canary);
 
         std::fill(out.begin(), out.end(), Canary);
-        EncodingFuncUpper(out.data(), raw.data(), RawLength{len});
+        EncodingFuncUpper(out.data(), raw.data(), RawLength{len}, upper);
         REQUIRE(std::equal(expected_upper.begin(), expected_upper.end(), out.begin()));
         REQUIRE(out[len * 2] == Canary);
 
@@ -358,86 +364,62 @@ void testHexLengthSweep()
 
 TEST_CASE("encodeHex")
 {
-    testHexEncoding<encodeHexLower, encodeHexUpper>();
+    testHexEncoding<encodeHex<lower_t>, encodeHex<upper_t>>();
 }
-
-#if defined(FAST_HEX_AVX2)
-TEST_CASE("encodeHexVec" * doctest::skip(!cpuHasAvx2()))
+TEST_CASE("decodeHex_valid")
 {
-    testHexEncoding<encodeHexLowerVec, encodeHexUpperVec>();
+    testHexDecoding<decodeHex>();
 }
-TEST_CASE("decodeHexVec_valid" * doctest::skip(!cpuHasAvx2()))
-{
-    testHexDecoding<decodeHexVec>();
-}
-TEST_CASE("hexVec_length_sweep" * doctest::skip(!cpuHasAvx2()))
-{
-    testHexLengthSweep<encodeHexLowerVec, encodeHexUpperVec, decodeHexVec>();
-}
-#endif
-
-#if defined(FAST_HEX_AVX512)
-TEST_CASE("encodeHexVec512" * doctest::skip(!cpuHasAvx512()))
-{
-    testHexEncoding<encodeHexLowerVec512, encodeHexUpperVec512>();
-}
-TEST_CASE("decodeHexVec512_valid" * doctest::skip(!cpuHasAvx512()))
-{
-    testHexDecoding<decodeHexVec512>();
-}
-TEST_CASE("hexVec512_length_sweep" * doctest::skip(!cpuHasAvx512()))
-{
-    testHexLengthSweep<encodeHexLowerVec512, encodeHexUpperVec512, decodeHexVec512>();
-}
-#endif
-
-#if defined(FAST_HEX_NEON)
-TEST_CASE("encodeHexNeonLower")
-{
-    testHexEncoding<encodeHexNeonLower, encodeHexNeonUpper>();
-}
-#endif
-
-static void eu(uint8_t * d, const uint8_t * s, RawLength n)
-{
-    encode_auto(d, s, n, upper);
-}
-static void el(uint8_t * d, const uint8_t * s, RawLength n)
-{
-    encode_auto(d, s, n, lower);
-}
-TEST_CASE("encode_auto_invalid")
-{
-    testHexEncoding<el, eu>();
-}
-
-TEST_CASE("encodeHexAuto")
-{
-    testHexEncoding<encodeHexLowerAuto, encodeHexUpperAuto>();
-}
-
-TEST_CASE("decodeHexAuto_valid")
-{
-    testHexDecoding<decodeHexAuto>();
-}
-
-
 TEST_CASE("decodeHexLUT_valid")
 {
     testHexDecoding<decodeHexLUT>();
 }
-
 TEST_CASE("decodeHexLUT4_valid")
 {
     testHexDecoding<decodeHexLUT4>();
 }
-
-TEST_CASE("decodeHexBMI_valid")
+TEST_CASE("hex_length_sweep")
 {
-    testHexDecoding<decodeHexBMI>();
+    testHexLengthSweep<encodeHex<lower_t>, encodeHex<upper_t>, decodeHex>();
+    testHexLengthSweep<encodeHex<lower_t>, encodeHex<upper_t>, decodeHexLUT>();
+    testHexLengthSweep<encodeHex<lower_t>, encodeHex<upper_t>, decodeHexLUT4>();
 }
 
-TEST_CASE("decode_auto_invalid")
+#if defined(FAST_HEX_X86_64)
+TEST_CASE("encodeHexAvx2" * doctest::skip(!cpuHasAvx2()))
 {
-    testHexDecoding<decode_auto>();
+    testHexEncoding<encodeHexAvx2<lower_t>, encodeHexAvx2<upper_t>>();
 }
+TEST_CASE("decodeHexAvx2_valid" * doctest::skip(!cpuHasAvx2()))
+{
+    testHexDecoding<decodeHexAvx2>();
+}
+TEST_CASE("hexAvx2_length_sweep" * doctest::skip(!cpuHasAvx2()))
+{
+    testHexLengthSweep<encodeHexAvx2<lower_t>, encodeHexAvx2<upper_t>, decodeHexAvx2>();
+}
+
+TEST_CASE("encodeHexAvx512Vbmi" * doctest::skip(!cpuHasAvx512Vbmi()))
+{
+    testHexEncoding<encodeHexAvx512Vbmi<lower_t>, encodeHexAvx512Vbmi<upper_t>>();
+}
+TEST_CASE("decodeHexAvx512Vbmi_valid" * doctest::skip(!cpuHasAvx512Vbmi()))
+{
+    testHexDecoding<decodeHexAvx512Vbmi>();
+}
+TEST_CASE("hexAvx512Vbmi_length_sweep" * doctest::skip(!cpuHasAvx512Vbmi()))
+{
+    testHexLengthSweep<encodeHexAvx512Vbmi<lower_t>, encodeHexAvx512Vbmi<upper_t>, decodeHexAvx512Vbmi>();
+}
+#endif
+
+#if defined(FAST_HEX_NEON)
+TEST_CASE("encodeHexNeon")
+{
+    testHexEncoding<encodeHexNeon<lower_t>, encodeHexNeon<upper_t>>();
+}
+TEST_CASE("hexNeon_length_sweep")
+{
+    testHexLengthSweep<encodeHexNeon<lower_t>, encodeHexNeon<upper_t>, decodeHex>();
+}
+#endif

@@ -1,14 +1,14 @@
-#include "../cpu_features.hpp"
-#include "fast_hex/fast_hex_inline.hpp"
+#include "fast_hex/fast_hex.hpp"
+#include "fast_hex/fast_hex_arm_neon.hpp"
+#include "fast_hex/fast_hex_x86_64_icelake.hpp"
+#include "fast_hex/fast_hex_x86_64_v3.hpp"
 
 #include <string>
 #include <string_view>
 
 #include <doctest/doctest.h>
 
-#if FAST_HEX_USE_NAMESPACE
 using namespace heks;
-#endif
 
 // clang-format off
 constexpr std::string_view invalid_hex_data[] = {
@@ -70,41 +70,25 @@ void testInvalidHexDecoding()
     }
 }
 
+TEST_CASE("decodeHex_invalid")
+{
+    testInvalidHexDecoding<decodeHex>();
+}
+
 TEST_CASE("decodeHexLUT_invalid")
 {
     testInvalidHexDecoding<decodeHexLUT>();
-}
-
-TEST_CASE("decodeHexLUT4_invalid")
-{
     testInvalidHexDecoding<decodeHexLUT4>();
 }
 
-TEST_CASE("decodeHexBMI_invalid")
+#if defined(FAST_HEX_X86_64)
+TEST_CASE("decodeHexAvx2_invalid" * doctest::skip(!cpuHasAvx2()))
 {
-    testInvalidHexDecoding<decodeHexBMI>();
+    testInvalidHexDecoding<decodeHexAvx2>();
 }
 
-TEST_CASE("decode_auto_invalid")
+TEST_CASE("decodeHexAvx512Vbmi_invalid" * doctest::skip(!cpuHasAvx512Vbmi()))
 {
-    testInvalidHexDecoding<decode_auto>();
-}
-
-TEST_CASE("decodeHexAuto_invalid")
-{
-    testInvalidHexDecoding<decodeHexAuto>();
-}
-
-#if defined(FAST_HEX_AVX2)
-TEST_CASE("decodeHexVec_invalid" * doctest::skip(!cpuHasAvx2()))
-{
-    testInvalidHexDecoding<decodeHexVec>();
-}
-#endif
-
-#if defined(FAST_HEX_AVX512)
-TEST_CASE("decodeHexVec512_invalid" * doctest::skip(!cpuHasAvx512()))
-{
-    testInvalidHexDecoding<decodeHexVec512>();
+    testInvalidHexDecoding<decodeHexAvx512Vbmi>();
 }
 #endif

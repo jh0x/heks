@@ -12,7 +12,6 @@ project(
 
 include(cmake/project-is-top-level.cmake)
 include(cmake/variables.cmake)
-include(cmake/avx_support.cmake)
 
 # Apply -march=native globally if enabled
 if(fast_hex_ENABLE_MARCH_NATIVE)
@@ -34,18 +33,6 @@ target_include_directories(
 )
 
 target_compile_features(fast_hex_headers INTERFACE cxx_std_20)
-
-if(fast_hex_USE_NAMESPACE)
-    target_compile_definitions(
-        fast_hex_headers
-        INTERFACE FAST_HEX_USE_NAMESPACE=1
-    )
-else()
-    target_compile_definitions(
-        fast_hex_headers
-        INTERFACE FAST_HEX_USE_NAMESPACE=0
-    )
-endif()
 
 # ---- Install rules ----
 

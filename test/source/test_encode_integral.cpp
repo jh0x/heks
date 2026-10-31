@@ -1,83 +1,79 @@
-#include "fast_hex/fast_hex_inline.hpp"
+#include "fast_hex/fast_hex.hpp"
+#include "fast_hex/fast_hex_arm_neon.hpp"
+#include "fast_hex/fast_hex_x86_64_icelake.hpp"
+#include "fast_hex/fast_hex_x86_64_v3.hpp"
 
-#include "../cpu_features.hpp"
-
+#include <algorithm>
+#include <array>
+#include <bit>
 #include <cstdint>
 #include <cstring>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <vector>
 
 #include <doctest/doctest.h>
 
 using namespace std::literals::string_view_literals;
-#if FAST_HEX_USE_NAMESPACE
 using namespace heks;
-#endif
 
-struct TestCase8
+template <typename T>
+struct TestCase
 {
-    uint64_t input;
+    T input;
     std::string_view expected_lower;
     std::string_view expected_upper;
 };
 
-static constexpr TestCase8 test_cases8[] = {{0x0011223344556677ULL, "0011223344556677"sv, "0011223344556677"sv},
-                                            {0x00AABBCCDDEEFF99ULL, "00aabbccddeeff99"sv, "00AABBCCDDEEFF99"sv},
-                                            {0x0000000000000000ULL, "0000000000000000"sv, "0000000000000000"sv},
-                                            {0xFFFFFFFFFFFFFFFFULL, "ffffffffffffffff"sv, "FFFFFFFFFFFFFFFF"sv},
-                                            {0x123456789ABCDEF0ULL, "123456789abcdef0"sv, "123456789ABCDEF0"sv},
-                                            {0x0000000FF1CEFACEULL, "0000000ff1ceface"sv, "0000000FF1CEFACE"sv},
-                                            {0x00BAB10CCAFEBABEULL, "00bab10ccafebabe"sv, "00BAB10CCAFEBABE"sv},
-                                            {0x1BADB002DEADBEEFULL, "1badb002deadbeef"sv, "1BADB002DEADBEEF"sv},
-                                            {0x4B1D0000FEEDFACEULL, "4b1d0000feedface"sv, "4B1D0000FEEDFACE"sv},
-                                            {0x50FFC001BAADF00DULL, "50ffc001baadf00d"sv, "50FFC001BAADF00D"sv},
-                                            {0xABADBABECAFEBABEULL, "abadbabecafebabe"sv, "ABADBABECAFEBABE"sv},
-                                            {0xACE0FBA5FEEDC0DEULL, "ace0fba5feedc0de"sv, "ACE0FBA5FEEDC0DE"sv},
-                                            {0xB105F00DDEADBEEFULL, "b105f00ddeadbeef"sv, "B105F00DDEADBEEF"sv},
-                                            {0xB16B00B5BAADF00DULL, "b16b00b5baadf00d"sv, "B16B00B5BAADF00D"sv},
-                                            {0x0B00B13500BAD00BULL, "0b00b13500bad00b"sv, "0B00B13500BAD00B"sv},
-                                            {0xBAAAAAADDEADFEEDULL, "baaaaaaddeadfeed"sv, "BAAAAAADDEADFEED"sv},
-                                            {0xBAADF00DFEEDBABEULL, "baadf00dfeedbabe"sv, "BAADF00DFEEDBABE"sv},
-                                            {0xBAD22222CAFED00DULL, "bad22222cafed00d"sv, "BAD22222CAFED00D"sv},
-                                            {0xBADDCAFEDECAFBADULL, "baddcafedecafbad"sv, "BADDCAFEDECAFBAD"sv},
-                                            {0xBEEFBABEFACEFEEDULL, "beefbabefacefeed"sv, "BEEFBABEFACEFEED"sv},
-                                            {0xCAFEBABE0D15EA5EULL, "cafebabe0d15ea5e"sv, "CAFEBABE0D15EA5E"sv},
-                                            {0xCAFED00DDABBAD00ULL, "cafed00ddabbad00"sv, "CAFED00DDABBAD00"sv},
-                                            {0x0D15EA5EDEADBAADULL, "0d15ea5edeadbaad"sv, "0D15EA5EDEADBAAD"sv},
-                                            {0xDABBAD00DEADBABEULL, "dabbad00deadbabe"sv, "DABBAD00DEADBABE"sv},
-                                            {0xDEAD2BADDEADBEAFULL, "dead2baddeadbeaf"sv, "DEAD2BADDEADBEAF"sv},
-                                            {0xDEADBABEDEADC0DEULL, "deadbabedeadc0de"sv, "DEADBABEDEADC0DE"sv},
-                                            {0xDEADBEAFDEADDEADULL, "deadbeafdeaddead"sv, "DEADBEAFDEADDEAD"sv},
-                                            {0xDEADC0DEDEADFA11ULL, "deadc0dedeadfa11"sv, "DEADC0DEDEADFA11"sv},
-                                            {0xDEADDEADDEAD10CCULL, "deaddeaddead10cc"sv, "DEADDEADDEAD10CC"sv},
-                                            {0xDEADD00DDEADFEEDULL, "deadd00ddeadfeed"sv, "DEADD00DDEADFEED"sv},
-                                            {0xDEADFA11DECAFBADULL, "deadfa11decafbad"sv, "DEADFA11DECAFBAD"sv},
-                                            {0xDEAD10CCDEFEC8EDULL, "dead10ccdefec8ed"sv, "DEAD10CCDEFEC8ED"sv},
-                                            {0xDEADFEEDD0D0CACAULL, "deadfeedd0d0caca"sv, "DEADFEEDD0D0CACA"sv},
-                                            {0xDECAFBADE011CFD0ULL, "decafbade011cfd0"sv, "DECAFBADE011CFD0"sv},
-                                            {0xDEFEC8EDF0CACC1AULL, "defec8edf0cacc1a"sv, "DEFEC8EDF0CACC1A"sv},
-                                            {0xD0D0CACAFACEFEEDULL, "d0d0cacafacefeed"sv, "D0D0CACAFACEFEED"sv},
-                                            {0xE011CFD0FBADBEEFULL, "e011cfd0fbadbeef"sv, "E011CFD0FBADBEEF"sv},
-                                            {0xF0CACC1AFEE1DEADULL, "f0cacc1afee1dead"sv, "F0CACC1AFEE1DEAD"sv},
-                                            {0xFACEFEEDFEEDBABEULL, "facefeedfeedbabe"sv, "FACEFEEDFEEDBABE"sv},
-                                            {0xFBADBEEFFEEDC0DEULL, "fbadbeeffeedc0de"sv, "FBADBEEFFEEDC0DE"sv},
-                                            {0xFEE1DEADFFBADD11ULL, "fee1deadffbadd11"sv, "FEE1DEADFFBADD11"sv},
-                                            {0xFEEDBABEF00DBABEULL, "feedbabef00dbabe"sv, "FEEDBABEF00DBABE"sv},
-                                            {0xFFBADD1100BAB10CULL, "ffbadd1100bab10c"sv, "FFBADD1100BAB10C"sv},
-                                            {0xF00DBABE1BADB002ULL, "f00dbabe1badb002"sv, "F00DBABE1BADB002"sv}};
+static constexpr TestCase<uint64_t> test_cases8[] = {{0x0011223344556677ULL, "0011223344556677"sv, "0011223344556677"sv},
+                                                     {0x00AABBCCDDEEFF99ULL, "00aabbccddeeff99"sv, "00AABBCCDDEEFF99"sv},
+                                                     {0x0000000000000000ULL, "0000000000000000"sv, "0000000000000000"sv},
+                                                     {0xFFFFFFFFFFFFFFFFULL, "ffffffffffffffff"sv, "FFFFFFFFFFFFFFFF"sv},
+                                                     {0x123456789ABCDEF0ULL, "123456789abcdef0"sv, "123456789ABCDEF0"sv},
+                                                     {0x0000000FF1CEFACEULL, "0000000ff1ceface"sv, "0000000FF1CEFACE"sv},
+                                                     {0x00BAB10CCAFEBABEULL, "00bab10ccafebabe"sv, "00BAB10CCAFEBABE"sv},
+                                                     {0x1BADB002DEADBEEFULL, "1badb002deadbeef"sv, "1BADB002DEADBEEF"sv},
+                                                     {0x4B1D0000FEEDFACEULL, "4b1d0000feedface"sv, "4B1D0000FEEDFACE"sv},
+                                                     {0x50FFC001BAADF00DULL, "50ffc001baadf00d"sv, "50FFC001BAADF00D"sv},
+                                                     {0xABADBABECAFEBABEULL, "abadbabecafebabe"sv, "ABADBABECAFEBABE"sv},
+                                                     {0xACE0FBA5FEEDC0DEULL, "ace0fba5feedc0de"sv, "ACE0FBA5FEEDC0DE"sv},
+                                                     {0xB105F00DDEADBEEFULL, "b105f00ddeadbeef"sv, "B105F00DDEADBEEF"sv},
+                                                     {0xB16B00B5BAADF00DULL, "b16b00b5baadf00d"sv, "B16B00B5BAADF00D"sv},
+                                                     {0x0B00B13500BAD00BULL, "0b00b13500bad00b"sv, "0B00B13500BAD00B"sv},
+                                                     {0xBAAAAAADDEADFEEDULL, "baaaaaaddeadfeed"sv, "BAAAAAADDEADFEED"sv},
+                                                     {0xBAADF00DFEEDBABEULL, "baadf00dfeedbabe"sv, "BAADF00DFEEDBABE"sv},
+                                                     {0xBAD22222CAFED00DULL, "bad22222cafed00d"sv, "BAD22222CAFED00D"sv},
+                                                     {0xBADDCAFEDECAFBADULL, "baddcafedecafbad"sv, "BADDCAFEDECAFBAD"sv},
+                                                     {0xBEEFBABEFACEFEEDULL, "beefbabefacefeed"sv, "BEEFBABEFACEFEED"sv},
+                                                     {0xCAFEBABE0D15EA5EULL, "cafebabe0d15ea5e"sv, "CAFEBABE0D15EA5E"sv},
+                                                     {0xCAFED00DDABBAD00ULL, "cafed00ddabbad00"sv, "CAFED00DDABBAD00"sv},
+                                                     {0x0D15EA5EDEADBAADULL, "0d15ea5edeadbaad"sv, "0D15EA5EDEADBAAD"sv},
+                                                     {0xDABBAD00DEADBABEULL, "dabbad00deadbabe"sv, "DABBAD00DEADBABE"sv},
+                                                     {0xDEAD2BADDEADBEAFULL, "dead2baddeadbeaf"sv, "DEAD2BADDEADBEAF"sv},
+                                                     {0xDEADBABEDEADC0DEULL, "deadbabedeadc0de"sv, "DEADBABEDEADC0DE"sv},
+                                                     {0xDEADBEAFDEADDEADULL, "deadbeafdeaddead"sv, "DEADBEAFDEADDEAD"sv},
+                                                     {0xDEADC0DEDEADFA11ULL, "deadc0dedeadfa11"sv, "DEADC0DEDEADFA11"sv},
+                                                     {0xDEADDEADDEAD10CCULL, "deaddeaddead10cc"sv, "DEADDEADDEAD10CC"sv},
+                                                     {0xDEADD00DDEADFEEDULL, "deadd00ddeadfeed"sv, "DEADD00DDEADFEED"sv},
+                                                     {0xDEADFA11DECAFBADULL, "deadfa11decafbad"sv, "DEADFA11DECAFBAD"sv},
+                                                     {0xDEAD10CCDEFEC8EDULL, "dead10ccdefec8ed"sv, "DEAD10CCDEFEC8ED"sv},
+                                                     {0xDEADFEEDD0D0CACAULL, "deadfeedd0d0caca"sv, "DEADFEEDD0D0CACA"sv},
+                                                     {0xDECAFBADE011CFD0ULL, "decafbade011cfd0"sv, "DECAFBADE011CFD0"sv},
+                                                     {0xDEFEC8EDF0CACC1AULL, "defec8edf0cacc1a"sv, "DEFEC8EDF0CACC1A"sv},
+                                                     {0xD0D0CACAFACEFEEDULL, "d0d0cacafacefeed"sv, "D0D0CACAFACEFEED"sv},
+                                                     {0xE011CFD0FBADBEEFULL, "e011cfd0fbadbeef"sv, "E011CFD0FBADBEEF"sv},
+                                                     {0xF0CACC1AFEE1DEADULL, "f0cacc1afee1dead"sv, "F0CACC1AFEE1DEAD"sv},
+                                                     {0xFACEFEEDFEEDBABEULL, "facefeedfeedbabe"sv, "FACEFEEDFEEDBABE"sv},
+                                                     {0xFBADBEEFFEEDC0DEULL, "fbadbeeffeedc0de"sv, "FBADBEEFFEEDC0DE"sv},
+                                                     {0xFEE1DEADFFBADD11ULL, "fee1deadffbadd11"sv, "FEE1DEADFFBADD11"sv},
+                                                     {0xFEEDBABEF00DBABEULL, "feedbabef00dbabe"sv, "FEEDBABEF00DBABE"sv},
+                                                     {0xFFBADD1100BAB10CULL, "ffbadd1100bab10c"sv, "FFBADD1100BAB10C"sv},
+                                                     {0xF00DBABE1BADB002ULL, "f00dbabe1badb002"sv, "F00DBABE1BADB002"sv}};
 
-#if defined(FAST_HEX_HAS_INT128)
-
-struct TestCase16
-{
-    __uint128_t input;
-    std::string_view expected_lower;
-    std::string_view expected_upper;
-};
-
+#if defined(__SIZEOF_INT128__)
 // clang-format off
-static constexpr TestCase16 test_cases16[] = {
+static constexpr TestCase<__uint128_t> test_cases16[] = {
     {(__uint128_t{0x0011223344556677ULL} << 64) | 0x8899AABBCCDDEEFFULL, "00112233445566778899aabbccddeeff"sv, "00112233445566778899AABBCCDDEEFF"sv},
     {(__uint128_t{0xFFFFFFFFFFFFFFFFULL} << 64) | 0xFFFFFFFFFFFFFFFFULL, "ffffffffffffffffffffffffffffffff"sv, "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"sv},
     {(__uint128_t{0x123456789ABCDEF0ULL} << 64) | 0x0FEDCBA987654321ULL, "123456789abcdef00fedcba987654321"sv, "123456789ABCDEF00FEDCBA987654321"sv},
@@ -89,146 +85,7 @@ static constexpr TestCase16 test_cases16[] = {
 };
 // clang-format on
 
-#endif // defined(FAST_HEX_HAS_INT128)
-
-struct TestCase2x8
-{
-    uint64_t input[2];
-    std::string_view expected_lower;
-    std::string_view expected_upper;
-};
-
-// clang-format off
-static constexpr TestCase2x8 test_cases2x8[] = {
-    {{0x0011223344556677ULL, 0x8899AABBCCDDEEFFULL}, "00112233445566778899aabbccddeeff"sv, "00112233445566778899AABBCCDDEEFF"sv},
-    {{0xFFFFFFFFFFFFFFFFULL, 0xFFFFFFFFFFFFFFFFULL}, "ffffffffffffffffffffffffffffffff"sv, "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"sv},
-    {{0x123456789ABCDEF0ULL, 0x0FEDCBA987654321ULL}, "123456789abcdef00fedcba987654321"sv, "123456789ABCDEF00FEDCBA987654321"sv},
-    {{0xDEADBEEFDEADC0DEULL, 0xFEEDFACECAFEBABEULL}, "deadbeefdeadc0defeedfacecafebabe"sv, "DEADBEEFDEADC0DEFEEDFACECAFEBABE"sv},
-    {{0x0B00B13500BAD00BULL, 0xBAADF00DFEEDBABEULL}, "0b00b13500bad00bbaadf00dfeedbabe"sv, "0B00B13500BAD00BBAADF00DFEEDBABE"sv},
-    {{0x0102030405060708ULL, 0x090A0B0C0D0E0F10ULL}, "0102030405060708090a0b0c0d0e0f10"sv, "0102030405060708090A0B0C0D0E0F10"sv},
-    {{0xFFFFFFFF00000000ULL, 0x00000000FFFFFFFFULL}, "ffffffff0000000000000000ffffffff"sv, "FFFFFFFF0000000000000000FFFFFFFF"sv},
-    {{0x0000000000000001ULL, 0x1000000000000000ULL}, "00000000000000011000000000000000"sv, "00000000000000011000000000000000"sv},
-};
-// clang-format on
-
-template <typename Fun, typename TC>
-void run_encode_integral_test(Fun encode_func, size_t outlength, const TC & test_cases)
-{
-    for (size_t i = 0; i < std::size(test_cases); i++)
-    {
-        const auto & tc = test_cases[i];
-        std::vector<uint8_t> dest_lower_vec(outlength);
-        auto * dest_lower = dest_lower_vec.data();
-        std::vector<uint8_t> dest_upper_vec(outlength);
-        auto * dest_upper = dest_upper_vec.data();
-
-        encode_func(dest_lower, tc.input, lower);
-        encode_func(dest_upper, tc.input, upper);
-
-        std::string_view result_lower(reinterpret_cast<char *>(dest_lower), outlength);
-        std::string_view result_upper(reinterpret_cast<char *>(dest_upper), outlength);
-
-        CAPTURE(i);
-        CAPTURE(tc.input);
-        REQUIRE(result_lower == tc.expected_lower);
-        REQUIRE(result_upper == tc.expected_upper);
-    }
-}
-
-template <typename Fun>
-void run_encode_integral2x8_test(Fun encode_func)
-{
-    constexpr auto OutLength = 32;
-    for (size_t i = 0; i < std::size(test_cases2x8); i++)
-    {
-        const auto & tc = test_cases2x8[i];
-        uint8_t dest_lower[OutLength] = {};
-        uint8_t dest_upper[OutLength] = {};
-        encode_func(dest_lower, tc.input, lower);
-        encode_func(dest_upper, tc.input, upper);
-
-        std::string_view result_lower(reinterpret_cast<char *>(dest_lower), OutLength);
-        std::string_view result_upper(reinterpret_cast<char *>(dest_upper), OutLength);
-
-        CAPTURE(i);
-        REQUIRE(result_lower == tc.expected_lower);
-        REQUIRE(result_upper == tc.expected_upper);
-    }
-}
-
-template <typename Fun, typename TC>
-void run_decode_integral_test(Fun decode_func, const TC & test_cases)
-{
-    for (size_t i = 0; i < std::size(test_cases); i++)
-    {
-        const auto & tc = test_cases[i];
-        auto input_data = reinterpret_cast<const uint8_t *>(tc.expected_lower.data());
-
-        using T = decltype(tc.input);
-        T output_value = decode_func(input_data);
-
-        CAPTURE(i);
-        CAPTURE(tc.expected_lower);
-        REQUIRE(output_value == tc.input);
-    }
-}
-
-TEST_SUITE("encode_integral")
-{
-    TEST_CASE("encode_integral 8 naive")
-    {
-        run_encode_integral_test([](auto dst, auto input, auto c) { encode_integral_naive(dst, input, c); }, 16, test_cases8);
-    }
-#if defined(FAST_HEX_HAS_INT128)
-    TEST_CASE("encode_integral 16 naive")
-    {
-        run_encode_integral_test([](auto dst, auto input, auto c) { encode_integral_naive(dst, input, c); }, 32, test_cases16);
-    }
-#endif
-    TEST_CASE("encode_integral 8 scalar")
-    {
-        run_encode_integral_test([](auto dst, auto input, auto c) { encode_integral8_scalar(dst, input, c); }, 16, test_cases8);
-    }
-#if defined(FAST_HEX_HAS_INT128)
-    TEST_CASE("encode_integral 16 scalar")
-    {
-        run_encode_integral_test([](auto dst, auto input, auto c) { encode_integral16_scalar(dst, input, c); }, 32, test_cases16);
-    }
-#endif
-    TEST_CASE("encode_integral 2x8 scalar")
-    {
-        run_encode_integral2x8_test([](auto dst, auto input, auto c) { encode_integral2x8_scalar(dst, input, c); });
-    }
-#if defined(FAST_HEX_AVX)
-    TEST_CASE("encode_integral 8" * doctest::skip(!cpuHasAvx()))
-    {
-        run_encode_integral_test([](auto dst, auto input, auto c) { encode_integral8(dst, input, c); }, 16, test_cases8);
-    }
-#elif defined(FAST_HEX_NEON)
-    TEST_CASE("encode_integral 8")
-    {
-        run_encode_integral_test([](auto dst, auto input, auto c) { encode_integral8(dst, input, c); }, 16, test_cases8);
-    }
-#endif
-#if defined(FAST_HEX_AVX2)
-    TEST_CASE("encode_integral 16" * doctest::skip(!cpuHasAvx2()))
-    {
-        run_encode_integral_test([](auto dst, auto input, auto c) { encode_integral16(dst, input, c); }, 32, test_cases16);
-    }
-    TEST_CASE("encode_integral 2x8" * doctest::skip(!cpuHasAvx2()))
-    {
-        run_encode_integral2x8_test([](auto dst, auto input, auto c) { encode_integral2x8(dst, input, c); });
-    }
-#endif // defined(FAST_HEX_AVX2)
-}
-
-template <typename T>
-struct TestCase
-{
-    T input;
-    std::string_view expected_lower;
-    std::string_view expected_upper;
-};
+#endif // defined(__SIZEOF_INT128__)
 
 static constexpr TestCase<uint8_t> test_cases1[] = {
     {0x00, "00"sv, "00"sv},
@@ -263,38 +120,173 @@ static constexpr TestCase<uint32_t> test_cases4[] = {
     {0xFFFFFFFF, "ffffffff"sv, "FFFFFFFF"sv},
 };
 
-TEST_SUITE("decode_integral")
+// A 256-bit integer the way ClickHouse's UInt256 stores it: 64-bit limbs in native byte order,
+// least significant first on little-endian
+struct UInt256
 {
-    TEST_CASE("decode_integral 1 naive")
+    uint64_t limbs[4];
+};
+
+// Limbs most significant first
+constexpr UInt256 makeUInt256(uint64_t a, uint64_t b, uint64_t c, uint64_t d)
+{
+    if constexpr (std::endian::native == std::endian::little)
+        return {{d, c, b, a}};
+    else
+        return {{a, b, c, d}};
+}
+
+// clang-format off
+static constexpr TestCase<UInt256> test_cases32[] = {
+    {makeUInt256(0x0011223344556677ULL, 0x8899AABBCCDDEEFFULL, 0x0123456789ABCDEFULL, 0xFEDCBA9876543210ULL),
+     "00112233445566778899aabbccddeeff0123456789abcdeffedcba9876543210"sv,
+     "00112233445566778899AABBCCDDEEFF0123456789ABCDEFFEDCBA9876543210"sv},
+    {makeUInt256(0, 0, 0, 0),
+     "0000000000000000000000000000000000000000000000000000000000000000"sv,
+     "0000000000000000000000000000000000000000000000000000000000000000"sv},
+    {makeUInt256(0, 0, 0, 1),
+     "0000000000000000000000000000000000000000000000000000000000000001"sv,
+     "0000000000000000000000000000000000000000000000000000000000000001"sv},
+    {makeUInt256(0x1000000000000000ULL, 0, 0, 0),
+     "1000000000000000000000000000000000000000000000000000000000000000"sv,
+     "1000000000000000000000000000000000000000000000000000000000000000"sv},
+    {makeUInt256(~0ULL, ~0ULL, ~0ULL, ~0ULL),
+     "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"sv,
+     "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"sv},
+    {makeUInt256(0xDEADBEEFDEADC0DEULL, 0xFEEDFACECAFEBABEULL, 0x0B00B13500BAD00BULL, 0xBAADF00DFEEDBABEULL),
+     "deadbeefdeadc0defeedfacecafebabe0b00b13500bad00bbaadf00dfeedbabe"sv,
+     "DEADBEEFDEADC0DEFEEDFACECAFEBABE0B00B13500BAD00BBAADF00DFEEDBABE"sv},
+};
+
+// For encodeHexInt2x8: first[0], then first[1]
+static constexpr TestCase<std::array<uint64_t, 2>> test_cases2x8[] = {
+    {{0x0011223344556677ULL, 0x8899AABBCCDDEEFFULL}, "00112233445566778899aabbccddeeff"sv, "00112233445566778899AABBCCDDEEFF"sv},
+    {{0xFFFFFFFFFFFFFFFFULL, 0xFFFFFFFFFFFFFFFFULL}, "ffffffffffffffffffffffffffffffff"sv, "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"sv},
+    {{0x123456789ABCDEF0ULL, 0x0FEDCBA987654321ULL}, "123456789abcdef00fedcba987654321"sv, "123456789ABCDEF00FEDCBA987654321"sv},
+    {{0xDEADBEEFDEADC0DEULL, 0xFEEDFACECAFEBABEULL}, "deadbeefdeadc0defeedfacecafebabe"sv, "DEADBEEFDEADC0DEFEEDFACECAFEBABE"sv},
+    {{0x0B00B13500BAD00BULL, 0xBAADF00DFEEDBABEULL}, "0b00b13500bad00bbaadf00dfeedbabe"sv, "0B00B13500BAD00BBAADF00DFEEDBABE"sv},
+    {{0x0102030405060708ULL, 0x090A0B0C0D0E0F10ULL}, "0102030405060708090a0b0c0d0e0f10"sv, "0102030405060708090A0B0C0D0E0F10"sv},
+    {{0xFFFFFFFF00000000ULL, 0x00000000FFFFFFFFULL}, "ffffffff0000000000000000ffffffff"sv, "FFFFFFFF0000000000000000FFFFFFFF"sv},
+    {{0x0000000000000001ULL, 0x1000000000000000ULL}, "00000000000000011000000000000000"sv, "00000000000000011000000000000000"sv},
+};
+// clang-format on
+
+// Checks the output and that nothing is written past sizeof(T) * 2 chars
+template <typename Fun, typename T, size_t N>
+void run_encode_integral_test(Fun encode_func, const TestCase<T> (&test_cases)[N])
+{
+    constexpr size_t OutLength = sizeof(T) * 2;
+    constexpr uint8_t Canary = 0xA5;
+    for (size_t i = 0; i < N; i++)
     {
-        run_decode_integral_test(decode_integral_naive<uint8_t>, test_cases1);
+        CAPTURE(i);
+        const auto & tc = test_cases[i];
+        std::vector<uint8_t> dest_lower(OutLength + 32, Canary);
+        std::vector<uint8_t> dest_upper(OutLength + 32, Canary);
+
+        encode_func(dest_lower.data(), tc.input, lower);
+        encode_func(dest_upper.data(), tc.input, upper);
+
+        REQUIRE(std::string_view(reinterpret_cast<const char *>(dest_lower.data()), OutLength) == tc.expected_lower);
+        REQUIRE(std::string_view(reinterpret_cast<const char *>(dest_upper.data()), OutLength) == tc.expected_upper);
+        REQUIRE(std::all_of(dest_lower.begin() + OutLength, dest_lower.end(), [](uint8_t x) { return x == Canary; }));
+        REQUIRE(std::all_of(dest_upper.begin() + OutLength, dest_upper.end(), [](uint8_t x) { return x == Canary; }));
     }
-    TEST_CASE("decode_integral 2 naive")
+}
+
+// Decodes the lower, upper and mixed case strings, each from a buffer of exactly sizeof(T) * 2 chars so that
+// ASan catches reads past it
+template <typename Fun, typename T, size_t N>
+void run_decode_integral_test(Fun decode_func, const TestCase<T> (&test_cases)[N])
+{
+    for (size_t i = 0; i < N; i++)
     {
-        run_decode_integral_test(decode_integral_naive<uint16_t>, test_cases2);
+        CAPTURE(i);
+        const auto & tc = test_cases[i];
+        std::string mixed(tc.expected_lower);
+        for (size_t j = 0; j < mixed.size(); j += 2)
+        {
+            mixed[j] = tc.expected_upper[j];
+        }
+        for (std::string_view hex : {tc.expected_lower, tc.expected_upper, std::string_view(mixed)})
+        {
+            CAPTURE(hex);
+            const std::vector<uint8_t> src(hex.begin(), hex.end());
+            const T decoded = decode_func(src.data(), std::type_identity<T>{});
+            REQUIRE(std::memcmp(&decoded, &tc.input, sizeof(T)) == 0);
+        }
     }
-    TEST_CASE("decode_integral 4 naive")
+}
+
+TEST_SUITE("encodeHexInt")
+{
+    TEST_CASE("encodeHexInt")
     {
-        run_decode_integral_test(decode_integral_naive<uint32_t>, test_cases4);
+        auto encode = [](auto dst, auto input, auto c) { encodeHexInt(dst, input, c); };
+        run_encode_integral_test(encode, test_cases1);
+        run_encode_integral_test(encode, test_cases2);
+        run_encode_integral_test(encode, test_cases4);
+        run_encode_integral_test(encode, test_cases8);
+#if defined(__SIZEOF_INT128__)
+        run_encode_integral_test(encode, test_cases16);
+#endif
+        run_encode_integral_test(encode, test_cases32);
     }
-    TEST_CASE("decode_integral 8 naive")
+    TEST_CASE("encodeHexInt2x8")
     {
-        run_decode_integral_test(decode_integral_naive<uint64_t>, test_cases8);
+        run_encode_integral_test([](auto dst, auto input, auto c) { encodeHexInt2x8(dst, input.data(), c); }, test_cases2x8);
     }
-    TEST_CASE("decode_integral 8 scalar")
+#if defined(FAST_HEX_X86_64)
+    TEST_CASE("encodeHexIntAvx2" * doctest::skip(!cpuHasAvx2()))
     {
-        run_decode_integral_test(decode_integral8_scalar, test_cases8);
+        auto encode = [](auto dst, auto input, auto c) { encodeHexIntAvx2(dst, input, c); };
+        run_encode_integral_test(encode, test_cases8);
+        run_encode_integral_test(encode, test_cases16);
+        run_encode_integral_test(encode, test_cases32);
     }
-#if defined(FAST_HEX_AVX)
-    TEST_CASE("decode_integral 8 AVX" * doctest::skip(!cpuHasAvx()))
+    TEST_CASE("encodeHexInt2x8Avx2" * doctest::skip(!cpuHasAvx2()))
     {
-        run_decode_integral_test(decode_integral8, test_cases8);
+        run_encode_integral_test([](auto dst, auto input, auto c) { encodeHexInt2x8Avx2(dst, input.data(), c); }, test_cases2x8);
     }
-#endif // defined(FAST_HEX_AVX)
-#if defined(FAST_HEX_HAS_INT128)
-    TEST_CASE("decode_integral 16 naive")
+#endif
+#if defined(FAST_HEX_NEON)
+    TEST_CASE("encodeHexIntNeon")
     {
-        run_decode_integral_test(decode_integral_naive<__uint128_t>, test_cases16);
+        auto encode = [](auto dst, auto input, auto c) { encodeHexIntNeon(dst, input, c); };
+        run_encode_integral_test(encode, test_cases8);
+#    if defined(__SIZEOF_INT128__)
+        run_encode_integral_test(encode, test_cases16);
+#    endif
+        run_encode_integral_test(encode, test_cases32);
     }
-#endif // defined(FAST_HEX_HAS_INT128)
+    TEST_CASE("encodeHexInt2x8Neon")
+    {
+        run_encode_integral_test([](auto dst, auto input, auto c) { encodeHexInt2x8Neon(dst, input.data(), c); }, test_cases2x8);
+    }
+#endif
+}
+
+TEST_SUITE("decodeHexInt")
+{
+    TEST_CASE("decodeHexInt")
+    {
+        auto decode = []<class T>(const uint8_t * src, std::type_identity<T>) { return decodeHexInt<T>(src); };
+        run_decode_integral_test(decode, test_cases1);
+        run_decode_integral_test(decode, test_cases2);
+        run_decode_integral_test(decode, test_cases4);
+        run_decode_integral_test(decode, test_cases8);
+#if defined(__SIZEOF_INT128__)
+        run_decode_integral_test(decode, test_cases16);
+#endif
+        run_decode_integral_test(decode, test_cases32);
+    }
+#if defined(FAST_HEX_X86_64)
+    TEST_CASE("decodeHexIntAvx2" * doctest::skip(!cpuHasAvx2()))
+    {
+        auto decode = []<class T>(const uint8_t * src, std::type_identity<T>) { return decodeHexIntAvx2<T>(src); };
+        run_decode_integral_test(decode, test_cases8);
+        run_decode_integral_test(decode, test_cases16);
+        run_decode_integral_test(decode, test_cases32);
+    }
+#endif
 }
