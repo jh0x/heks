@@ -1,6 +1,0 @@
-[submodule "contrib/doctest"]
-	path = contrib/doctest
-	url = https://github.com/doctest/doctest.git
-[submodule "contrib/benchmark"]
-	path = contrib/benchmark
-	url = https://github.com/google/benchmark.git
