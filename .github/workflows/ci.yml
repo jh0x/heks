@@ -188,11 +188,24 @@ jobs:
   test-arm64:
     needs: [lint]
 
-    runs-on: ubuntu-26.04-arm
-
     strategy:
       matrix:
+        compiler: [gcc, clang-18, clang-19, clang-20, clang-21, clang-22]
+
         build_type: [Debug, Release]
+
+        include:
+        - { compiler: gcc, cc: gcc, cxx: g++ }
+        - { compiler: clang-18, cc: clang-18, cxx: clang++-18 }
+        - { compiler: clang-19, cc: clang-19, cxx: clang++-19 }
+        - { compiler: clang-20, cc: clang-20, cxx: clang++-20 }
+        - { compiler: clang-21, cc: clang-21, cxx: clang++-21 }
+        - { compiler: clang-22, cc: clang-22, cxx: clang++-22 }
+
+    runs-on: ubuntu-26.04-arm
+
+    env:
+      CXX: ${{ matrix.cxx }}
 
     steps:
     - uses: actions/checkout@v7
@@ -201,21 +214,47 @@ jobs:
 
     - name: Install dependencies
       run: >-
-        sudo apt-get update && sudo apt-get install build-essential cmake git clang-18 -y -q
+        sudo apt-get update && sudo apt-get install build-essential cmake git ${{ matrix.compiler }} -y -q
 
     - name: Configure
       shell: pwsh
       run: cmake --preset=ci-ubuntu-arm
-        -D CMAKE_C_COMPILER=clang-18
-        -D CMAKE_CXX_COMPILER=clang++-18
+        -D CMAKE_C_COMPILER=${{ matrix.cc }}
+        -D CMAKE_CXX_COMPILER=${{ matrix.cxx }}
         -D CMAKE_BUILD_TYPE=${{ matrix.build_type }}
 
     - name: Build
-      run: cmake --build build -j 2
+      run: cmake --build build -j 4
 
     - name: Test
       working-directory: build
-      run: ctest --output-on-failure --no-tests=error -j 2
+      run: ctest --output-on-failure --no-tests=error -j 4
+
+  # Apple Silicon: Apple Clang, libc++ and 16 KiB pages
+  test-macos:
+    needs: [lint]
+
+    strategy:
+      matrix:
+        build_type: [Debug, Release]
+
+    runs-on: macos-26
+
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        submodules: recursive
+
+    - name: Configure
+      run: cmake --preset=ci-macos
+        -D CMAKE_CONFIGURATION_TYPES=${{ matrix.build_type }}
+
+    - name: Build
+      run: cmake --build build --config ${{ matrix.build_type }} -j 3
+
+    - name: Test
+      working-directory: build
+      run: ctest --output-on-failure --no-tests=error -C ${{ matrix.build_type }} -j 3
 
   fuzz:
     needs: [lint]
