@@ -149,8 +149,9 @@ FAST_HEX_TARGET_AVX2 inline void decodeHexVecLarge(uint8_t * dest, const uint8_t
     }
 }
 
-// len is number of dest bytes (i.e. half of src length)
-FAST_HEX_TARGET_AVX2 inline void decodeHexVecImpl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, size_t len)
+// len is number of dest bytes (i.e. half of src length). Always inlined into decodeHexAvx2, as in the v4 header
+FAST_HEX_TARGET_AVX2 __attribute__((always_inline)) inline void
+decodeHexVecImpl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, size_t len)
 {
     if (len < 32)
         decodeHexSmallVec(dest, src, len);

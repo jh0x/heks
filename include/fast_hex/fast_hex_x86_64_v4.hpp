@@ -119,8 +119,11 @@ FAST_HEX_TARGET_AVX512 inline void decodeHexVec512Large(uint8_t * FAST_HEX_RESTR
     }
 }
 
-// len is number of dest bytes (i.e. half of src length)
-FAST_HEX_TARGET_AVX512 inline void decodeHexVec512Impl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, size_t len)
+// len is number of dest bytes (i.e. half of src length). Always inlined into decodeHexAvx512, so that a caller which
+// inlines that one (e.g. one call per row) gets the whole decoder and not a call: by size, clang keeps this one out
+// of line
+FAST_HEX_TARGET_AVX512 __attribute__((always_inline)) inline void
+decodeHexVec512Impl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, size_t len)
 {
     if (len > 16 && len < 32)
     {
