@@ -252,6 +252,8 @@ ctest --preset=dev
 Typical variables you might want to tweak:
 
 - `fast_hex_ENABLE_FUZZ` - whether to build fuzzing tests in `test/fuzz`.
+- `fast_hex_ENABLE_SANITIZERS` - build the tests with AddressSanitizer and UndefinedBehaviorSanitizer (GCC or Clang).
+  The `ci-sanitize` preset turns it on.
 - `fast_hex_ENABLE_BENCHMARK` - whether to build benchmarks in `test/benchmark`.
 - `fast_hex_ENABLE_MARCH_NATIVE` - build the tests, fuzzers and benchmarks for the CPU of the build machine.
   It used to be on by default, so turn it on when comparing benchmark results with older builds.

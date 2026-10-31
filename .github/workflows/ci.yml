@@ -108,7 +108,7 @@ jobs:
         -D CMAKE_C_COMPILER=${{ matrix.cc }}
         -D CMAKE_CXX_COMPILER=${{ matrix.cxx }}
         -D CMAKE_BUILD_TYPE=${{ matrix.build_type }}
-        -D ENABLE_SANITIZERS=ON
+        -D fast_hex_ENABLE_SANITIZERS=ON
         -D "CMAKE_CXX_CLANG_TIDY=${{ matrix.tidy }};--header-filter=^${{ github.workspace }}/"
 
     - name: Build
@@ -194,6 +194,9 @@ jobs:
 
         build_type: [Debug, Release]
 
+        # ASan + UBSan
+        sanitizers: [OFF, ON]
+
         include:
         - { compiler: gcc, cc: gcc, cxx: g++ }
         - { compiler: clang-18, cc: clang-18, cxx: clang++-18 }
@@ -222,12 +225,22 @@ jobs:
         -D CMAKE_C_COMPILER=${{ matrix.cc }}
         -D CMAKE_CXX_COMPILER=${{ matrix.cxx }}
         -D CMAKE_BUILD_TYPE=${{ matrix.build_type }}
+        -D fast_hex_ENABLE_SANITIZERS=${{ matrix.sanitizers }}
 
     - name: Build
       run: cmake --build build -j 4
 
     - name: Test
       working-directory: build
+      env:
+        ASAN_OPTIONS: "strict_string_checks=1:\
+          detect_stack_use_after_return=1:\
+          check_initialization_order=1:\
+          strict_init_order=1:\
+          detect_leaks=1:\
+          halt_on_error=1"
+        UBSAN_OPTIONS: "print_stacktrace=1:\
+          halt_on_error=1"
       run: ctest --output-on-failure --no-tests=error -j 4
 
   # Apple Silicon: Apple Clang, libc++ and 16 KiB pages
@@ -237,6 +250,9 @@ jobs:
     strategy:
       matrix:
         build_type: [Debug, Release]
+
+        # ASan + UBSan
+        sanitizers: [OFF, ON]
 
     runs-on: macos-26
 
@@ -248,12 +264,22 @@ jobs:
     - name: Configure
       run: cmake --preset=ci-macos
         -D CMAKE_CONFIGURATION_TYPES=${{ matrix.build_type }}
+        -D fast_hex_ENABLE_SANITIZERS=${{ matrix.sanitizers }}
 
     - name: Build
       run: cmake --build build --config ${{ matrix.build_type }} -j 3
 
     - name: Test
       working-directory: build
+      # No detect_leaks: LeakSanitizer is not supported on Apple arm64
+      env:
+        ASAN_OPTIONS: "strict_string_checks=1:\
+          detect_stack_use_after_return=1:\
+          check_initialization_order=1:\
+          strict_init_order=1:\
+          halt_on_error=1"
+        UBSAN_OPTIONS: "print_stacktrace=1:\
+          halt_on_error=1"
       run: ctest --output-on-failure --no-tests=error -C ${{ matrix.build_type }} -j 3
 
   fuzz:
@@ -281,6 +307,36 @@ jobs:
 
     - name: Build
       run: cmake --build build -j 2
+
+    - name: Fuzz
+      working-directory: build
+      run: ctest --output-on-failure -R fuzz -j 1
+
+  # Not on macOS: Apple Clang does not ship libFuzzer
+  fuzz-arm64:
+    needs: [lint]
+
+    runs-on: ubuntu-26.04-arm
+
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        submodules: recursive
+
+    - name: Install dependencies
+      run: >-
+        sudo apt-get update && sudo apt-get install build-essential cmake git clang-18 -y -q
+
+    - name: Configure
+      shell: pwsh
+      run: cmake --preset=ci-ubuntu-arm
+        -D CMAKE_C_COMPILER=clang-18
+        -D CMAKE_CXX_COMPILER=clang++-18
+        -D CMAKE_BUILD_TYPE=Release
+        -D fast_hex_ENABLE_FUZZ=ON
+
+    - name: Build
+      run: cmake --build build -j 4
 
     - name: Fuzz
       working-directory: build
