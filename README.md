@@ -63,8 +63,9 @@ auto value = heks::decodeHexInt<unsigned __int128>(id);        // and back
 | `cpuHasAvx512()` | `fast_hex_x86_64_v4.hpp` | `FAST_HEX_X86_64` |
 | `encodeHexAvx512Vbmi(dest, src, len, case)`, `decodeHexAvx512Vbmi(dest, src, len)` | `fast_hex_x86_64_icelake.hpp` | `FAST_HEX_X86_64` |
 | `cpuHasAvx512Vbmi()` | `fast_hex_x86_64_icelake.hpp` | `FAST_HEX_X86_64` |
-| `encodeHexNeon(dest, src, len, case)` | `fast_hex_arm_neon.hpp` | `FAST_HEX_NEON` |
-| `encodeHexIntNeon(dest, value, case)`, `encodeHexInt2x8Neon(dest, first, case)` | `fast_hex_arm_neon.hpp` | `FAST_HEX_NEON` |
+| `encodeHexNeon(dest, src, len, case)`, `decodeHexNeon(dest, src, len)` | `fast_hex_arm_neon.hpp` | `FAST_HEX_NEON` |
+| `encodeHexIntNeon(dest, value, case)`, `decodeHexIntNeon<T>(src)` | `fast_hex_arm_neon.hpp` | `FAST_HEX_NEON` |
+| `encodeHexInt2x8Neon(dest, first, case)` | `fast_hex_arm_neon.hpp` | `FAST_HEX_NEON` |
 
 `FAST_HEX_X86_64` is defined for GCC and Clang on x86-64. MSVC and 32-bit x86 only get the scalar functions.
 `FAST_HEX_NEON` is defined when the compiler targets NEON (`__ARM_NEON`).
@@ -73,10 +74,19 @@ The three scalar decoders suit different lengths:
 
 - `decodeHex` computes each nibble with arithmetic, so the compiler turns it into vector code: Clang from `-O2`,
   GCC only at `-O3`. It is the fastest scalar decoder from about 8 bytes up, or 16 when the length is not a
-  multiple of 8, as it then decodes the last bytes one at a time. There is no NEON decoder, as `decodeHex` is
-  vectorized on ARM too.
+  multiple of 8, as it then decodes the last bytes one at a time. On ARM, `decodeHexNeon` is faster at most
+  lengths (see below).
 - `decodeHexLUT` and `decodeHexLUT4` look each char up in a table, so they are never vectorized. They are faster
   for shorter inputs, and with GCC at `-O2`. `decodeHexLUT4` also looks up the high nibble already shifted.
+
+On ARM, `encodeHexNeon` and `decodeHexNeon` finish inputs that are not a multiple of 16 bytes with vector blocks
+rather than scalar code, and inline for inputs up to 32 bytes. On Neoverse-N1 (Graviton 2) with Clang,
+`encodeHexNeon` takes about 3 ns for 8 to 15 bytes (the scalar tail took 8 to 14 ns), and `decodeHexNeon` takes
+6 ns for 31 bytes against 19 ns with `decodeHex`. On long inputs `decodeHexNeon` is about 25% faster than
+`decodeHex` with GCC, and level with it with Clang. Nothing uses more than the base AArch64 NEON instructions, so
+building for a newer Arm CPU (`-march=armv8.2-a+...`, `-mcpu=neoverse-n1`) makes no difference, and a copy built
+with `target("+sve")`, such as ClickHouse's `MULTITARGET_FUNCTION_*_ARM_SVE`, compiles the NEON functions to the
+same code.
 
 On x86-64 with Clang, decoding 1 to 3 bytes takes about 1 to 3 ns with `decodeHexLUT4` against 2 to 5 ns with
 `decodeHex` or `decodeHexAvx2`. `decodeHexAvx2` is the fastest from about 7 bytes.

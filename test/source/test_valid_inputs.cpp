@@ -433,8 +433,12 @@ TEST_CASE("encodeHexNeon")
 {
     testHexEncoding<encodeHexNeon<lower_t>, encodeHexNeon<upper_t>>();
 }
+TEST_CASE("decodeHexNeon_valid")
+{
+    testHexDecoding<decodeHexNeon>();
+}
 TEST_CASE("hexNeon_length_sweep")
 {
-    testHexLengthSweep<encodeHexNeon<lower_t>, encodeHexNeon<upper_t>, decodeHex>();
+    testHexLengthSweep<encodeHexNeon<lower_t>, encodeHexNeon<upper_t>, decodeHexNeon>();
 }
 #endif

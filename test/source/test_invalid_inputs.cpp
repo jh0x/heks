@@ -124,3 +124,10 @@ TEST_CASE("decodeHexAvx512_matches_avx2_on_invalid" * doctest::skip(!cpuHasAvx2(
     }
 }
 #endif
+
+#if defined(FAST_HEX_NEON)
+TEST_CASE("decodeHexNeon_invalid")
+{
+    testInvalidHexDecoding<decodeHexNeon>();
+}
+#endif

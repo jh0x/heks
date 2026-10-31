@@ -70,6 +70,9 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * Data, size_t Size)
         if (has_avx512_vbmi)
             decode(encoded, decodeHexAvx512Vbmi);
 #endif
+#if defined(FAST_HEX_NEON)
+        decode(encoded, decodeHexNeon);
+#endif
     };
 
     test_encode(encodeHex<lower_t>, lower, expected_lower);
