@@ -26,12 +26,13 @@ Everything is in namespace `heks`.
 |--------|---------------|---------|
 | [`fast_hex.hpp`](include/fast_hex/fast_hex.hpp) | any CPU | any CPU |
 | [`fast_hex_x86_64_v3.hpp`](include/fast_hex/fast_hex_x86_64_v3.hpp) | AVX2 | Haswell, Zen 1 and later |
+| [`fast_hex_x86_64_v4.hpp`](include/fast_hex/fast_hex_x86_64_v4.hpp) | AVX-512 F, BW, CD, DQ and VL | Skylake-X, Cascade Lake, Ice Lake, Zen 4 and later |
 | [`fast_hex_x86_64_icelake.hpp`](include/fast_hex/fast_hex_x86_64_icelake.hpp) | AVX-512 F, BW, VL and VBMI | Ice Lake, Zen 4 and later, but not Skylake-X or Cascade Lake |
 | [`fast_hex_arm_neon.hpp`](include/fast_hex/fast_hex_arm_neon.hpp) | NEON | AArch64, ARMv7 with NEON |
 
 Each ISA header includes the ones it builds on. On other platforms it is empty, so it can be included
-unconditionally. VBMI is not part of x86-64-v4, so a `-march=x86-64-v4` build is not enough for
-the icelake functions.
+unconditionally. VBMI is not part of x86-64-v4, so a `-march=x86-64-v4` build is enough for the v4 functions but
+not for the icelake ones.
 
 ```cpp
 #include <fast_hex/fast_hex.hpp>
@@ -58,6 +59,8 @@ auto value = heks::decodeHexInt<unsigned __int128>(id);        // and back
 | `encodeHexIntAvx2(dest, value, case)`, `decodeHexIntAvx2<T>(src)` | `fast_hex_x86_64_v3.hpp` | `FAST_HEX_X86_64` |
 | `encodeHexInt2x8Avx2(dest, first, case)` | `fast_hex_x86_64_v3.hpp` | `FAST_HEX_X86_64` |
 | `cpuHasAvx2()` | `fast_hex_x86_64_v3.hpp` | `FAST_HEX_X86_64` |
+| `encodeHexAvx512(dest, src, len, case)`, `decodeHexAvx512(dest, src, len)` | `fast_hex_x86_64_v4.hpp` | `FAST_HEX_X86_64` |
+| `cpuHasAvx512()` | `fast_hex_x86_64_v4.hpp` | `FAST_HEX_X86_64` |
 | `encodeHexAvx512Vbmi(dest, src, len, case)`, `decodeHexAvx512Vbmi(dest, src, len)` | `fast_hex_x86_64_icelake.hpp` | `FAST_HEX_X86_64` |
 | `cpuHasAvx512Vbmi()` | `fast_hex_x86_64_icelake.hpp` | `FAST_HEX_X86_64` |
 | `encodeHexNeon(dest, src, len, case)` | `fast_hex_arm_neon.hpp` | `FAST_HEX_NEON` |
@@ -101,7 +104,7 @@ target attributes, so they are always compiled in and need no build flags, but c
 that has the instruction set. Either:
 
 - call it from code that already requires the instruction set, e.g. a build with `-march=x86-64-v3`, or
-- check once with `cpuHasAvx2()` or `cpuHasAvx512Vbmi()` and pick:
+- check once with `cpuHasAvx2()`, `cpuHasAvx512()` or `cpuHasAvx512Vbmi()` and pick:
 
 ```cpp
 #include <fast_hex/fast_hex.hpp>

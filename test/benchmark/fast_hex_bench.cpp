@@ -2,6 +2,7 @@
 #include "fast_hex/fast_hex_arm_neon.hpp"
 #include "fast_hex/fast_hex_x86_64_icelake.hpp"
 #include "fast_hex/fast_hex_x86_64_v3.hpp"
+#include "fast_hex/fast_hex_x86_64_v4.hpp"
 
 #include <benchmark/benchmark.h>
 
@@ -37,13 +38,14 @@ enum class Isa
 {
     None,
     Avx2,
+    Avx512,
     Avx512Vbmi
 };
 
 bool skipUnsupported([[maybe_unused]] Isa isa, [[maybe_unused]] benchmark::State & state)
 {
 #if defined(FAST_HEX_X86_64)
-    if ((isa == Isa::Avx2 && !cpuHasAvx2()) || (isa == Isa::Avx512Vbmi && !cpuHasAvx512Vbmi()))
+    if ((isa == Isa::Avx2 && !cpuHasAvx2()) || (isa == Isa::Avx512 && !cpuHasAvx512()) || (isa == Isa::Avx512Vbmi && !cpuHasAvx512Vbmi()))
     {
         state.SkipWithMessage("CPU does not support the instruction set");
         return true;
@@ -204,6 +206,9 @@ INT_BENCHMARK(UInt256, encodeHexIntAvx2, Isa::Avx2)
 INT_DECODE_BENCHMARK(uint64_t, decodeHexIntAvx2, Isa::Avx2)
 INT_DECODE_BENCHMARK(__uint128_t, decodeHexIntAvx2, Isa::Avx2)
 INT_DECODE_BENCHMARK(UInt256, decodeHexIntAvx2, Isa::Avx2)
+
+HEX_BENCHMARK(encodeHexAvx512<lower_t>, true, Isa::Avx512)
+HEX_BENCHMARK(decodeHexAvx512, false, Isa::Avx512)
 
 HEX_BENCHMARK(encodeHexAvx512Vbmi<lower_t>, true, Isa::Avx512Vbmi)
 HEX_BENCHMARK(decodeHexAvx512Vbmi, false, Isa::Avx512Vbmi)
