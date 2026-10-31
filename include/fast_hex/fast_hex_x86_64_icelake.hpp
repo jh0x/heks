@@ -181,4 +181,6 @@ decodeHexAvx512Vbmi(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_R
 
 } // namespace heks
 
+#    undef FAST_HEX_TARGET_AVX512_VBMI
+
 #endif // defined(FAST_HEX_X86_64)

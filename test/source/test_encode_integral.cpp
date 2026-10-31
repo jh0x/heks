@@ -172,31 +172,43 @@ static constexpr TestCase<std::array<uint64_t, 2>> test_cases2x8[] = {
 };
 // clang-format on
 
-// Checks the output and that nothing is written past sizeof(T) * 2 chars
+static constexpr size_t MaxOffset = 32; // Covers every misalignment of the widest (256-bit) vector these use
+
+// Checks the output at every offset in [0, MaxOffset), and that nothing is written before it or past
+// sizeof(T) * 2 chars
 template <typename Fun, typename T, size_t N>
 void run_encode_integral_test(Fun encode_func, const TestCase<T> (&test_cases)[N])
 {
     constexpr size_t OutLength = sizeof(T) * 2;
     constexpr uint8_t Canary = 0xA5;
+    auto is_canary = [](uint8_t x) { return x == Canary; };
     for (size_t i = 0; i < N; i++)
     {
         CAPTURE(i);
         const auto & tc = test_cases[i];
-        std::vector<uint8_t> dest_lower(OutLength + 32, Canary);
-        std::vector<uint8_t> dest_upper(OutLength + 32, Canary);
+        for (size_t offset = 0; offset < MaxOffset; ++offset)
+        {
+            CAPTURE(offset);
+            std::vector<uint8_t> dest_lower(MaxOffset + OutLength + 32, Canary);
+            std::vector<uint8_t> dest_upper(MaxOffset + OutLength + 32, Canary);
+            auto * out_lower = dest_lower.data() + offset;
+            auto * out_upper = dest_upper.data() + offset;
 
-        encode_func(dest_lower.data(), tc.input, lower);
-        encode_func(dest_upper.data(), tc.input, upper);
+            encode_func(out_lower, tc.input, lower);
+            encode_func(out_upper, tc.input, upper);
 
-        REQUIRE(std::string_view(reinterpret_cast<const char *>(dest_lower.data()), OutLength) == tc.expected_lower);
-        REQUIRE(std::string_view(reinterpret_cast<const char *>(dest_upper.data()), OutLength) == tc.expected_upper);
-        REQUIRE(std::all_of(dest_lower.begin() + OutLength, dest_lower.end(), [](uint8_t x) { return x == Canary; }));
-        REQUIRE(std::all_of(dest_upper.begin() + OutLength, dest_upper.end(), [](uint8_t x) { return x == Canary; }));
+            REQUIRE(std::string_view(reinterpret_cast<const char *>(out_lower), OutLength) == tc.expected_lower);
+            REQUIRE(std::string_view(reinterpret_cast<const char *>(out_upper), OutLength) == tc.expected_upper);
+            REQUIRE(std::all_of(dest_lower.data(), out_lower, is_canary));
+            REQUIRE(std::all_of(dest_upper.data(), out_upper, is_canary));
+            REQUIRE(std::all_of(out_lower + OutLength, dest_lower.data() + dest_lower.size(), is_canary));
+            REQUIRE(std::all_of(out_upper + OutLength, dest_upper.data() + dest_upper.size(), is_canary));
+        }
     }
 }
 
-// Decodes the lower, upper and mixed case strings, each from a buffer of exactly sizeof(T) * 2 chars so that
-// ASan catches reads past it
+// Decodes the lower, upper and mixed case strings at every offset in [0, MaxOffset), each from a buffer that
+// ends right after the sizeof(T) * 2 chars so that ASan catches reads past them
 template <typename Fun, typename T, size_t N>
 void run_decode_integral_test(Fun decode_func, const TestCase<T> (&test_cases)[N])
 {
@@ -212,9 +224,14 @@ void run_decode_integral_test(Fun decode_func, const TestCase<T> (&test_cases)[N
         for (std::string_view hex : {tc.expected_lower, tc.expected_upper, std::string_view(mixed)})
         {
             CAPTURE(hex);
-            const std::vector<uint8_t> src(hex.begin(), hex.end());
-            const T decoded = decode_func(src.data(), std::type_identity<T>{});
-            REQUIRE(std::memcmp(&decoded, &tc.input, sizeof(T)) == 0);
+            for (size_t offset = 0; offset < MaxOffset; ++offset)
+            {
+                CAPTURE(offset);
+                std::vector<uint8_t> src(offset + hex.size());
+                std::copy(hex.begin(), hex.end(), src.data() + offset);
+                const T decoded = decode_func(src.data() + offset, std::type_identity<T>{});
+                REQUIRE(std::memcmp(&decoded, &tc.input, sizeof(T)) == 0);
+            }
         }
     }
 }

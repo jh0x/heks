@@ -5,11 +5,11 @@
 #include "fast_hex/fast_hex_x86_64_v3.hpp"
 #include "fast_hex/fast_hex_x86_64_v4.hpp"
 
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
 #include <vector>
 
 using namespace heks;
@@ -43,7 +43,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * Data, size_t Size)
     {
         std::vector<uint8_t> decoded(decoded_size);
         decode_func(decoded.data(), source.data(), RawLength{decoded_size});
-        if (std::memcmp(Data, decoded.data(), decoded_size) != 0)
+        // Not memcmp: decoded.data() is null when Size is 0
+        if (!std::equal(decoded.begin(), decoded.end(), Data))
         {
             std::abort();
         }
