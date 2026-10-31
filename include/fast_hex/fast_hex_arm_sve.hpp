@@ -36,12 +36,8 @@ namespace heks_detail
 template <HexCase H>
 FAST_HEX_TARGET_SVE inline svuint8_t sveHexLut()
 {
-    // clang-format off
-    alignas(16) static constexpr uint8_t HEX_LUT_LOWER[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
-    alignas(16) static constexpr uint8_t HEX_LUT_UPPER[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
-    // clang-format on
-    // The 16 chars in every 128-bit segment, so tbl finds them at indices 0-15 whatever the vector length
-    return svld1rq_u8(svptrue_b8(), H == HexCase::Lower ? HEX_LUT_LOWER : HEX_LUT_UPPER);
+    // The 16 digits in every 128-bit segment, so tbl finds them at indices 0-15 whatever the vector length
+    return svld1rq_u8(svptrue_b8(), hexDigits<H>());
 }
 
 // The bytes in pg -> their hex chars, the first half of the chars in the first returned vector
@@ -53,7 +49,8 @@ FAST_HEX_TARGET_SVE inline svuint8x2_t encodeHexSveVec(svbool_t pg, svuint8_t in
     return svcreate2_u8(svzip1_u8(hi, lo), svzip2_u8(hi, lo));
 }
 
-// len > 32. Out of line, like encodeHexNeonLarge. With 128-bit vectors, the NEON loop
+// len > 32. Out of line, like encodeHexNeonLarge. With 128-bit vectors, the NEON loop: a second call, which
+// costs 0.05 ns there, while checking the length in encodeHexSve instead cost 0.2 ns at 63 bytes with 256-bit vectors
 template <HexCase H>
 FAST_HEX_TARGET_SVE __attribute__((noinline)) void
 encodeHexSveLarge(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, size_t len)
@@ -82,15 +79,16 @@ encodeHexSveLarge(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RES
     }
 }
 
-// 2 * vl hex chars -> vl bytes, for the lanes in pg. The nibbles are unhexBitManip's, except that the high char
-// skips the & 0xF: its upper bits leave when it is multiplied by 16
+// 2 * vl hex chars -> vl bytes, for the lanes in pg: hi << 4 | (lo & 0xF) of the unhexBitManip nibbles, as
+// decodeHexNeon, so the two decode input that is not hex the same. Neither nibble needs the & 0xF of
+// unhexBitManip first: the high one's upper bits leave when it is multiplied by 16, and the low one is masked after
 FAST_HEX_TARGET_SVE inline svuint8_t decodeHexSveVec(svbool_t pg, const uint8_t * src)
 {
     const svuint8x2_t chars = svld2_u8(pg, src); // Even chars (high nibbles) in the first vector, odd in the second
     const svuint8_t ch = svget2_u8(chars, 0);
     const svuint8_t cl = svget2_u8(chars, 1);
     const svuint8_t hi = svmla_n_u8_x(pg, ch, svlsr_n_u8_x(pg, ch, 6), 9);
-    const svuint8_t lo = svmla_n_u8_x(pg, svand_n_u8_x(pg, cl, 0x0F), svlsr_n_u8_x(pg, cl, 6), 9);
+    const svuint8_t lo = svand_n_u8_x(pg, svmla_n_u8_x(pg, cl, svlsr_n_u8_x(pg, cl, 6), 9), 0x0F);
     return svmla_n_u8_x(pg, lo, hi, 16);
 }
 

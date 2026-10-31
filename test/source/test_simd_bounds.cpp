@@ -4,6 +4,7 @@
 #include "fast_hex/fast_hex_x86_64_icelake.hpp"
 #include "fast_hex/fast_hex_x86_64_v3.hpp"
 #include "fast_hex/fast_hex_x86_64_v4.hpp"
+#include "sve_vector_lengths.hpp"
 
 #include <algorithm>
 #include <array>
@@ -240,12 +241,12 @@ TEST_CASE("hexNeon_guarded_buffers")
 #if defined(FAST_HEX_ARM_SVE)
 TEST_CASE("hexSve_unaligned_buffers" * doctest::skip(!cpuHasSve()))
 {
-    testUnalignedBuffers<encodeHexSve<lower_t>, encodeHexSve<upper_t>, decodeHexSve>();
+    heks_test::forEachSveVectorLength([] { testUnalignedBuffers<encodeHexSve<lower_t>, encodeHexSve<upper_t>, decodeHexSve>(); });
 }
 #    if defined(__unix__) || defined(__APPLE__)
 TEST_CASE("hexSve_guarded_buffers" * doctest::skip(!cpuHasSve()))
 {
-    testGuardedBuffers<encodeHexSve<lower_t>, encodeHexSve<upper_t>, decodeHexSve>();
+    heks_test::forEachSveVectorLength([] { testGuardedBuffers<encodeHexSve<lower_t>, encodeHexSve<upper_t>, decodeHexSve>(); });
 }
 #    endif
 #endif
