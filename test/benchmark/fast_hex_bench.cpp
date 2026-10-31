@@ -1,5 +1,6 @@
 #include "fast_hex/fast_hex.hpp"
 #include "fast_hex/fast_hex_arm_neon.hpp"
+#include "fast_hex/fast_hex_arm_sve.hpp"
 #include "fast_hex/fast_hex_x86_64_icelake.hpp"
 #include "fast_hex/fast_hex_x86_64_v3.hpp"
 #include "fast_hex/fast_hex_x86_64_v4.hpp"
@@ -33,19 +34,27 @@ std::vector<uint8_t> createHexData(size_t binarySize)
     return hex;
 }
 
-// The AVX2 and AVX-512 code is compiled in even where the CPU can't run it, so those benchmarks are skipped there
+// The AVX2, AVX-512 and SVE code is compiled in even where the CPU can't run it, so those benchmarks are skipped there
 enum class Isa
 {
     None,
     Avx2,
     Avx512,
-    Avx512Vbmi
+    Avx512Vbmi,
+    Sve
 };
 
 bool skipUnsupported([[maybe_unused]] Isa isa, [[maybe_unused]] benchmark::State & state)
 {
 #if defined(FAST_HEX_X86_64)
     if ((isa == Isa::Avx2 && !cpuHasAvx2()) || (isa == Isa::Avx512 && !cpuHasAvx512()) || (isa == Isa::Avx512Vbmi && !cpuHasAvx512Vbmi()))
+    {
+        state.SkipWithMessage("CPU does not support the instruction set");
+        return true;
+    }
+#endif
+#if defined(FAST_HEX_ARM_SVE)
+    if (isa == Isa::Sve && !cpuHasSve())
     {
         state.SkipWithMessage("CPU does not support the instruction set");
         return true;
@@ -227,6 +236,11 @@ INT_DECODE_BENCHMARK(uint64_t, decodeHexIntNeon, Isa::None)
 INT_DECODE_BENCHMARK(__uint128_t, decodeHexIntNeon, Isa::None)
 #    endif
 INT_DECODE_BENCHMARK(UInt256, decodeHexIntNeon, Isa::None)
+#endif
+
+#if defined(FAST_HEX_ARM_SVE)
+HEX_BENCHMARK(encodeHexSve<lower_t>, true, Isa::Sve)
+HEX_BENCHMARK(decodeHexSve, false, Isa::Sve)
 #endif
 
 BENCHMARK_MAIN();

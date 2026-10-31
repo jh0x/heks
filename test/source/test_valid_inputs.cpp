@@ -1,5 +1,6 @@
 #include "fast_hex/fast_hex.hpp"
 #include "fast_hex/fast_hex_arm_neon.hpp"
+#include "fast_hex/fast_hex_arm_sve.hpp"
 #include "fast_hex/fast_hex_x86_64_icelake.hpp"
 #include "fast_hex/fast_hex_x86_64_v3.hpp"
 #include "fast_hex/fast_hex_x86_64_v4.hpp"
@@ -440,5 +441,20 @@ TEST_CASE("decodeHexNeon_valid")
 TEST_CASE("hexNeon_length_sweep")
 {
     testHexLengthSweep<encodeHexNeon<lower_t>, encodeHexNeon<upper_t>, decodeHexNeon>();
+}
+#endif
+
+#if defined(FAST_HEX_ARM_SVE)
+TEST_CASE("encodeHexSve" * doctest::skip(!cpuHasSve()))
+{
+    testHexEncoding<encodeHexSve<lower_t>, encodeHexSve<upper_t>>();
+}
+TEST_CASE("decodeHexSve_valid" * doctest::skip(!cpuHasSve()))
+{
+    testHexDecoding<decodeHexSve>();
+}
+TEST_CASE("hexSve_length_sweep" * doctest::skip(!cpuHasSve()))
+{
+    testHexLengthSweep<encodeHexSve<lower_t>, encodeHexSve<upper_t>, decodeHexSve>();
 }
 #endif
