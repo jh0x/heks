@@ -1,18 +1,19 @@
-#include <cstdint>
-#include "../cpu_features.hpp"
-#include "fast_hex/fast_hex_inline.hpp"
+#include "fast_hex/fast_hex.hpp"
+#include "fast_hex/fast_hex_arm_neon.hpp"
+#include "fast_hex/fast_hex_x86_64_icelake.hpp"
+#include "fast_hex/fast_hex_x86_64_v3.hpp"
 
 #include <benchmark/benchmark.h>
 
+#include <cstdint>
 #include <cstring>
 #include <random>
 #include <vector>
 
-#if FAST_HEX_USE_NAMESPACE
 using namespace heks;
-#endif
 
-
+namespace
+{
 std::vector<uint8_t> createBinaryData(size_t size)
 {
     std::vector<uint8_t> data(size);
@@ -27,76 +28,43 @@ std::vector<uint8_t> createHexData(size_t binarySize)
 {
     auto binary = createBinaryData(binarySize);
     std::vector<uint8_t> hex(binarySize * 2);
-    encodeHexLower(hex.data(), binary.data(), RawLength{binarySize});
+    encodeHex(hex.data(), binary.data(), RawLength{binarySize}, lower);
     return hex;
 }
 
-// AVX, AVX2 and AVX-512 code is compiled in even where the CPU can't run it, so those benchmarks are skipped there
+// The AVX2 and AVX-512 code is compiled in even where the CPU can't run it, so those benchmarks are skipped there
 enum class Isa
 {
     None,
-    Avx,
     Avx2,
-    Avx512
+    Avx512Vbmi
 };
 
-// Instruction set each benchmarked function needs
-template <auto Func>
-constexpr Isa required_isa = Isa::None;
-
-#if defined(FAST_HEX_AVX)
-template <>
-constexpr Isa required_isa<&encodeHex8LowerFast> = Isa::Avx;
-template <>
-constexpr Isa required_isa<&encodeHex8UpperFast> = Isa::Avx;
-#endif
-#if defined(FAST_HEX_AVX2)
-template <>
-constexpr Isa required_isa<&encodeHexLowerVec> = Isa::Avx2;
-template <>
-constexpr Isa required_isa<&encodeHexUpperVec> = Isa::Avx2;
-template <>
-constexpr Isa required_isa<&encodeHex16LowerFast> = Isa::Avx2;
-template <>
-constexpr Isa required_isa<&encodeHex16UpperFast> = Isa::Avx2;
-template <>
-constexpr Isa required_isa<&decodeHexVec> = Isa::Avx2;
-#endif
-#if defined(FAST_HEX_AVX512)
-template <>
-constexpr Isa required_isa<&encodeHexLowerVec512> = Isa::Avx512;
-template <>
-constexpr Isa required_isa<&encodeHexUpperVec512> = Isa::Avx512;
-template <>
-constexpr Isa required_isa<&decodeHexVec512> = Isa::Avx512;
-#endif
-#if defined(FAST_HEX_AVX)
-template <>
-constexpr Isa required_isa<&encode_integral8<uint64_t, lower_t>> = Isa::Avx;
-#endif
-#if defined(FAST_HEX_AVX2)
-template <>
-constexpr Isa required_isa<&encode_integral16<__uint128_t, lower_t>> = Isa::Avx2;
-template <>
-constexpr Isa required_isa<&encode_integral2x8<uint64_t, lower_t>> = Isa::Avx2;
-#endif
-
-template <auto Func>
-bool skipUnsupported(benchmark::State & state)
+bool skipUnsupported([[maybe_unused]] Isa isa, [[maybe_unused]] benchmark::State & state)
 {
-    constexpr Isa isa = required_isa<Func>;
-    if ((isa == Isa::Avx && !cpuHasAvx()) || (isa == Isa::Avx2 && !cpuHasAvx2()) || (isa == Isa::Avx512 && !cpuHasAvx512()))
+#if defined(FAST_HEX_X86_64)
+    if ((isa == Isa::Avx2 && !cpuHasAvx2()) || (isa == Isa::Avx512Vbmi && !cpuHasAvx512Vbmi()))
     {
         state.SkipWithMessage("CPU does not support the instruction set");
         return true;
     }
+#endif
     return false;
 }
 
 template <auto Func, bool Encode>
+void run(uint8_t * dst, const uint8_t * src, size_t size)
+{
+    if constexpr (Encode)
+        Func(dst, src, RawLength{size}, lower);
+    else
+        Func(dst, src, RawLength{size});
+}
+
+template <auto Func, bool Encode, Isa I>
 void BM_hex_Runtime(benchmark::State & state)
 {
-    if (skipUnsupported<Func>(state))
+    if (skipUnsupported(I, state))
         return;
     const auto size = static_cast<size_t>(state.range(0));
     const auto offset = static_cast<size_t>(state.range(1));
@@ -108,7 +76,7 @@ void BM_hex_Runtime(benchmark::State & state)
     std::memcpy(src, data.data(), data.size());
     for (auto _ : state)
     {
-        Func(dst, src, RawLength{size});
+        run<Func, Encode>(dst, src, size);
         benchmark::DoNotOptimize(dst);
         benchmark::ClobberMemory();
     }
@@ -116,10 +84,10 @@ void BM_hex_Runtime(benchmark::State & state)
 }
 
 // Output right after input in one buffer (neighbors)
-template <auto Func, bool Encode>
+template <auto Func, bool Encode, Isa I>
 void BM_hex_Adjacent(benchmark::State & state)
 {
-    if (skipUnsupported<Func>(state))
+    if (skipUnsupported(I, state))
         return;
     const auto size = static_cast<size_t>(state.range(0));
     auto data = Encode ? createBinaryData(size) : createHexData(size);
@@ -129,330 +97,125 @@ void BM_hex_Adjacent(benchmark::State & state)
     std::memcpy(src, data.data(), data.size());
     for (auto _ : state)
     {
-        Func(dst, src, RawLength{size});
+        run<Func, Encode>(dst, src, size);
         benchmark::DoNotOptimize(dst);
         benchmark::ClobberMemory();
     }
     state.SetBytesProcessed(state.iterations() * static_cast<int64_t>(size));
 }
 
-#define DEFINE_RUNTIME_BENCHMARK(func_name, encode) \
-    BENCHMARK_TEMPLATE(BM_hex_Runtime, func_name, encode) \
-        ->ArgsProduct({{8, 15, 16, 31, 32, 33, 63, 64, 65, 1024, 1024 * 1024}, {0, 1}}) \
-        ->ArgNames({"bytes", "offset"}); \
-    BENCHMARK_TEMPLATE(BM_hex_Adjacent, func_name, encode)->ArgsProduct({{1, 3, 7, 8, 15, 16, 31, 32}})->ArgNames({"bytes"});
+// A 256-bit integer the way ClickHouse's UInt256 stores it
+struct UInt256
+{
+    uint64_t limbs[4];
+};
 
 template <typename T>
-std::vector<T> createInputData(size_t count, T)
+std::vector<T> createInputData(size_t count)
 {
-    std::mt19937 rng(std::random_device{}());
-    std::uniform_int_distribution<uint64_t> dist(0, std::numeric_limits<uint64_t>::max());
+    std::mt19937_64 rng(42);
     std::vector<T> data(count);
-    for (size_t i = 0; i < count; ++i)
+    for (auto & value : data)
     {
-        if constexpr (sizeof(T) <= 8)
+        uint64_t limbs[(sizeof(T) + 7) / 8];
+        for (auto & limb : limbs)
         {
-            data[i] = static_cast<T>(dist(rng));
+            limb = rng();
         }
-        else
-        {
-            data[i] = (static_cast<T>(dist(rng)) << 64) | dist(rng);
-        }
+        std::memcpy(&value, limbs, sizeof(T));
     }
     return data;
 }
 
-#define DEFINE_ENCODE_BENCHMARK(func_name, size_val, size_name) \
-    static void BM_##func_name##_##size_name(benchmark::State & state) \
-    { \
-        if (skipUnsupported<func_name>(state)) \
-            return; \
-        auto data = createBinaryData(size_val); \
-        std::vector<uint8_t> hex(size_val * 2); \
-\
-        for (auto _ : state) \
-        { \
-            func_name(hex.data(), data.data(), RawLength{size_val}); \
-            benchmark::DoNotOptimize(hex); \
-        } \
-    } \
-    BENCHMARK(BM_##func_name##_##size_name);
+template <typename T, auto Encode, Isa I>
+void BM_encodeInt(benchmark::State & state)
+{
+    if (skipUnsupported(I, state))
+        return;
+    const auto data = createInputData<T>(static_cast<size_t>(state.range(0)));
+    std::vector<uint8_t> hex(data.size() * sizeof(T) * 2);
+    for (auto _ : state)
+    {
+        for (size_t i = 0; i < data.size(); ++i)
+        {
+            Encode(hex.data() + i * sizeof(T) * 2, data[i], lower);
+        }
+        benchmark::DoNotOptimize(hex.data());
+        benchmark::ClobberMemory();
+    }
+    state.SetItemsProcessed(state.iterations() * state.range(0));
+}
 
-#define DEFINE_ENCODE_BENCHMARK_FAST(func_name, size_val, size_name) \
-    static void BM_##func_name##_##size_name(benchmark::State & state) \
-    { \
-        if (skipUnsupported<func_name>(state)) \
-            return; \
-        auto data = createBinaryData(size_val); \
-        std::vector<uint8_t> hex(size_val * 2); \
-\
-        for (auto _ : state) \
-        { \
-            func_name(hex.data(), data.data()); \
-            benchmark::DoNotOptimize(hex); \
-        } \
-    } \
-    BENCHMARK(BM_##func_name##_##size_name);
+template <typename T, auto Decode, Isa I>
+void BM_decodeInt(benchmark::State & state)
+{
+    if (skipUnsupported(I, state))
+        return;
+    const auto data = createInputData<T>(static_cast<size_t>(state.range(0)));
+    std::vector<uint8_t> hex(data.size() * sizeof(T) * 2);
+    for (size_t i = 0; i < data.size(); ++i)
+    {
+        encodeHexInt(hex.data() + i * sizeof(T) * 2, data[i], lower);
+    }
+    std::vector<T> decoded(data.size());
+    for (auto _ : state)
+    {
+        for (size_t i = 0; i < decoded.size(); ++i)
+        {
+            decoded[i] = Decode(hex.data() + i * sizeof(T) * 2);
+        }
+        benchmark::DoNotOptimize(decoded.data());
+        benchmark::ClobberMemory();
+    }
+    state.SetItemsProcessed(state.iterations() * state.range(0));
+}
+} // namespace
 
-#define DEFINE_DECODE_BENCHMARK(func_name, size_val, size_name) \
-    static void BM_##func_name##_##size_name(benchmark::State & state) \
-    { \
-        if (skipUnsupported<func_name>(state)) \
-            return; \
-        auto hex = createHexData(size_val); \
-        std::vector<uint8_t> binary(size_val); \
-\
-        for (auto _ : state) \
-        { \
-            func_name(binary.data(), hex.data(), RawLength{size_val}); \
-            benchmark::DoNotOptimize(binary); \
-        } \
-    } \
-    BENCHMARK(BM_##func_name##_##size_name);
+#define HEX_BENCHMARK(func, encode, isa) \
+    BENCHMARK_TEMPLATE(BM_hex_Runtime, func, encode, isa) \
+        ->ArgsProduct({{8, 15, 16, 31, 32, 33, 63, 64, 65, 1024, 1024 * 1024}, {0, 1}}) \
+        ->ArgNames({"bytes", "offset"}); \
+    BENCHMARK_TEMPLATE(BM_hex_Adjacent, func, encode, isa)->ArgsProduct({{1, 3, 7, 8, 15, 16, 31, 32}})->ArgNames({"bytes"});
 
-#define DEFINE_ENCODE_INTEGRAL_BENCHMARK(func_name, Type, size_val, size_name) \
-    static void BM_##func_name##_##size_name(benchmark::State & state) \
-    { \
-        if (skipUnsupported<&func_name<Type, lower_t>>(state)) \
-            return; \
-        auto data = createInputData(size_val, Type{}); \
-        std::vector<uint8_t> hex(size_val * 2 * sizeof(Type)); \
-        for (auto _ : state) \
-        { \
-            for (size_t i = 0; i < data.size(); ++i) \
-            { \
-                func_name(hex.data() + i * sizeof(Type) * 2, data[i], lower); \
-            } \
-            benchmark::DoNotOptimize(hex); \
-        } \
-    } \
-    BENCHMARK(BM_##func_name##_##size_name);
+#define INT_BENCHMARK(T, encode, isa) BENCHMARK_TEMPLATE(BM_encodeInt, T, encode<T, lower_t>, isa)->Arg(1)->Arg(1024)->ArgName("count");
+#define INT_DECODE_BENCHMARK(T, decode, isa) BENCHMARK_TEMPLATE(BM_decodeInt, T, decode<T>, isa)->Arg(1)->Arg(1024)->ArgName("count");
 
-#define DEFINE_ENCODE_INTEGRAL_BENCHMARK2x8(func_name, size_val, size_name) \
-    static void BM_##func_name##_##size_name(benchmark::State & state) \
-    { \
-        if (skipUnsupported<&func_name<uint64_t, lower_t>>(state)) \
-            return; \
-        auto data = createInputData(size_val * 2, uint64_t{}); \
-        std::vector<uint8_t> hex(size_val * 2 * sizeof(uint64_t) * 2); \
-        for (auto _ : state) \
-        { \
-            for (size_t i = 0; i < data.size(); i += 2) \
-            { \
-                func_name(hex.data() + i * sizeof(uint64_t) * 2, &data[i], lower); \
-            } \
-            benchmark::DoNotOptimize(hex); \
-        } \
-    } \
-    BENCHMARK(BM_##func_name##_##size_name);
-
-#define DEFINE_DECODE_INTEGRAL_BENCHMARK(func_name, Type, size_val, size_name) \
-    static void BM_##func_name##_##size_name(benchmark::State & state) \
-    { \
-        if (skipUnsupported<&func_name<Type>>(state)) \
-            return; \
-        auto data = createInputData(size_val, Type{}); \
-        std::vector<uint8_t> hex(size_val * 2 * sizeof(Type)); \
-        for (size_t i = 0; i < data.size(); ++i) \
-        { \
-            encode_integral_naive<Type>(hex.data() + i * sizeof(Type) * 2, data[i], lower); \
-        } \
-        std::vector<Type> output(size_val); \
-        for (auto _ : state) \
-        { \
-            for (size_t i = 0; i < data.size(); ++i) \
-            { \
-                output[i] = func_name<Type>(hex.data() + i * sizeof(Type) * 2); \
-            } \
-            benchmark::DoNotOptimize(output); \
-        } \
-    } \
-    BENCHMARK(BM_##func_name##_##size_name);
-
-// clang-format off
-
-// ---- Encoding Benchmarks ----
-
-DEFINE_ENCODE_BENCHMARK(encodeHexLower, 8, 8B)
-DEFINE_ENCODE_BENCHMARK(encodeHexLower, 16, 16B)
-DEFINE_ENCODE_BENCHMARK(encodeHexLower, 32, 32B)
-DEFINE_ENCODE_BENCHMARK(encodeHexLower, 64, 64B)
-DEFINE_ENCODE_BENCHMARK(encodeHexLower, 1024, 1KB)
-DEFINE_ENCODE_BENCHMARK(encodeHexLower, 1024 * 1024, 1MB)
-
-DEFINE_ENCODE_BENCHMARK_FAST(encodeHex8LowerScalar, 8, 8B)
-DEFINE_ENCODE_BENCHMARK_FAST(encodeHex16LowerScalar, 16, 16B)
-
-#if defined(FAST_HEX_AVX)
-DEFINE_ENCODE_BENCHMARK_FAST(encodeHex8LowerFast, 8, 8B)
+HEX_BENCHMARK(encodeHex<lower_t>, true, Isa::None)
+HEX_BENCHMARK(decodeHex, false, Isa::None)
+HEX_BENCHMARK(decodeHexLUT, false, Isa::None)
+HEX_BENCHMARK(decodeHexLUT4, false, Isa::None)
+INT_BENCHMARK(uint64_t, encodeHexInt, Isa::None)
+#if defined(__SIZEOF_INT128__)
+INT_BENCHMARK(__uint128_t, encodeHexInt, Isa::None)
 #endif
+INT_BENCHMARK(UInt256, encodeHexInt, Isa::None)
+INT_DECODE_BENCHMARK(uint64_t, decodeHexInt, Isa::None)
+#if defined(__SIZEOF_INT128__)
+INT_DECODE_BENCHMARK(__uint128_t, decodeHexInt, Isa::None)
+#endif
+INT_DECODE_BENCHMARK(UInt256, decodeHexInt, Isa::None)
 
-#if defined(FAST_HEX_AVX2)
-DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec, 8, 8B)
-DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec, 16, 16B)
-DEFINE_ENCODE_BENCHMARK_FAST(encodeHex16LowerFast, 16, 16B)
-DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec, 32, 32B)
-DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec, 64, 64B)
-DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec, 1024, 1KB)
-DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec, 1024 * 1024, 1MB)
-DEFINE_RUNTIME_BENCHMARK(encodeHexLowerVec, true)
-#endif // defined(FAST_HEX_AVX2)
+#if defined(FAST_HEX_X86_64)
+HEX_BENCHMARK(encodeHexAvx2<lower_t>, true, Isa::Avx2)
+HEX_BENCHMARK(decodeHexAvx2, false, Isa::Avx2)
+INT_BENCHMARK(uint64_t, encodeHexIntAvx2, Isa::Avx2)
+INT_BENCHMARK(__uint128_t, encodeHexIntAvx2, Isa::Avx2)
+INT_BENCHMARK(UInt256, encodeHexIntAvx2, Isa::Avx2)
+INT_DECODE_BENCHMARK(uint64_t, decodeHexIntAvx2, Isa::Avx2)
+INT_DECODE_BENCHMARK(__uint128_t, decodeHexIntAvx2, Isa::Avx2)
+INT_DECODE_BENCHMARK(UInt256, decodeHexIntAvx2, Isa::Avx2)
 
-#if defined(FAST_HEX_AVX512)
-DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec512, 8, 8B)
-DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec512, 16, 16B)
-DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec512, 32, 32B)
-DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec512, 64, 64B)
-DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec512, 1024, 1KB)
-DEFINE_ENCODE_BENCHMARK(encodeHexLowerVec512, 1024 * 1024, 1MB)
-DEFINE_RUNTIME_BENCHMARK(encodeHexLowerVec512, true)
-#endif // defined(FAST_HEX_AVX512)
-
-DEFINE_RUNTIME_BENCHMARK(encodeHexLowerAuto, true)
+HEX_BENCHMARK(encodeHexAvx512Vbmi<lower_t>, true, Isa::Avx512Vbmi)
+HEX_BENCHMARK(decodeHexAvx512Vbmi, false, Isa::Avx512Vbmi)
+#endif
 
 #if defined(FAST_HEX_NEON)
-DEFINE_ENCODE_BENCHMARK(encodeHexNeonLower, 8, 8B)
-DEFINE_ENCODE_BENCHMARK_FAST(encodeHex8LowerNeon, 8, 8B)
-DEFINE_ENCODE_BENCHMARK(encodeHexNeonLower, 16, 16B)
-DEFINE_ENCODE_BENCHMARK_FAST(encodeHex16LowerNeon, 16, 16B)
-DEFINE_ENCODE_BENCHMARK(encodeHexNeonLower, 32, 32B)
-DEFINE_ENCODE_BENCHMARK(encodeHexNeonLower, 64, 64B)
-DEFINE_ENCODE_BENCHMARK(encodeHexNeonLower, 1024, 1KB)
-DEFINE_ENCODE_BENCHMARK(encodeHexNeonLower, 1024 * 1024, 1MB)
-#endif // FAST_HEX_NEON
-
-// ---- Decoding Benchmarks ----
-
-DEFINE_DECODE_BENCHMARK(decodeHexLUT, 8, 8B)
-DEFINE_DECODE_BENCHMARK(decodeHexLUT, 16, 16B)
-DEFINE_DECODE_BENCHMARK(decodeHexLUT, 32, 32B)
-DEFINE_DECODE_BENCHMARK(decodeHexLUT, 64, 64B)
-DEFINE_DECODE_BENCHMARK(decodeHexLUT, 1024, 1KB)
-DEFINE_DECODE_BENCHMARK(decodeHexLUT, 1024 * 1024, 1MB)
-
-DEFINE_DECODE_BENCHMARK(decodeHexLUT4, 8, 8B)
-DEFINE_DECODE_BENCHMARK(decodeHexLUT4, 16, 16B)
-DEFINE_DECODE_BENCHMARK(decodeHexLUT4, 32, 32B)
-DEFINE_DECODE_BENCHMARK(decodeHexLUT4, 64, 64B)
-DEFINE_DECODE_BENCHMARK(decodeHexLUT4, 1024, 1KB)
-DEFINE_DECODE_BENCHMARK(decodeHexLUT4, 1024 * 1024, 1MB)
-
-DEFINE_DECODE_BENCHMARK(decodeHexBMI, 8, 8B)
-DEFINE_DECODE_BENCHMARK(decodeHexBMI, 16, 16B)
-DEFINE_DECODE_BENCHMARK(decodeHexBMI, 32, 32B)
-DEFINE_DECODE_BENCHMARK(decodeHexBMI, 64, 64B)
-DEFINE_DECODE_BENCHMARK(decodeHexBMI, 1024, 1KB)
-DEFINE_DECODE_BENCHMARK(decodeHexBMI, 1024 * 1024, 1MB)
-
-#if defined(FAST_HEX_AVX2)
-DEFINE_DECODE_BENCHMARK(decodeHexVec, 8, 8B)
-DEFINE_DECODE_BENCHMARK(decodeHexVec, 16, 16B)
-DEFINE_DECODE_BENCHMARK(decodeHexVec, 32, 32B)
-DEFINE_DECODE_BENCHMARK(decodeHexVec, 64, 64B)
-DEFINE_DECODE_BENCHMARK(decodeHexVec, 1024, 1KB)
-DEFINE_DECODE_BENCHMARK(decodeHexVec, 1024 * 1024, 1MB)
-DEFINE_RUNTIME_BENCHMARK(decodeHexVec, false)
-#endif // defined(FAST_HEX_AVX2)
-
-#if defined(FAST_HEX_AVX512)
-DEFINE_DECODE_BENCHMARK(decodeHexVec512, 8, 8B)
-DEFINE_DECODE_BENCHMARK(decodeHexVec512, 16, 16B)
-DEFINE_DECODE_BENCHMARK(decodeHexVec512, 32, 32B)
-DEFINE_DECODE_BENCHMARK(decodeHexVec512, 64, 64B)
-DEFINE_DECODE_BENCHMARK(decodeHexVec512, 1024, 1KB)
-DEFINE_DECODE_BENCHMARK(decodeHexVec512, 1024 * 1024, 1MB)
-DEFINE_RUNTIME_BENCHMARK(decodeHexVec512, false)
-#endif // defined(FAST_HEX_AVX512)
-
-DEFINE_RUNTIME_BENCHMARK(decodeHexAuto, false)
-
-DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral_naive, uint64_t, 1, 1_uint64)
-DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral_naive, uint64_t, 8, 8_uint64)
-DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral_naive, uint64_t, 1024, 1024_uint64)
-DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral_naive, uint64_t, 1024 * 1024, 1048576_uint64)
-
-#if defined(FAST_HEX_HAS_INT128)
-DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral_naive, __uint128_t, 1, 1_uint128)
-DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral_naive, __uint128_t, 8, 8_uint128)
-DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral_naive, __uint128_t, 1024, 1024_uint128)
-DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral_naive, __uint128_t, 1024 * 1024, 1048576_uint128)
+HEX_BENCHMARK(encodeHexNeon<lower_t>, true, Isa::None)
+INT_BENCHMARK(uint64_t, encodeHexIntNeon, Isa::None)
+#    if defined(__SIZEOF_INT128__)
+INT_BENCHMARK(__uint128_t, encodeHexIntNeon, Isa::None)
+#    endif
+INT_BENCHMARK(UInt256, encodeHexIntNeon, Isa::None)
 #endif
-
-DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral8_scalar, uint64_t, 1, 1_uint64)
-DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral8_scalar, uint64_t, 1024, 1024_uint64)
-DEFINE_ENCODE_INTEGRAL_BENCHMARK2x8(encode_integral2x8_scalar, 1, 1_uint64x2)
-DEFINE_ENCODE_INTEGRAL_BENCHMARK2x8(encode_integral2x8_scalar, 1024, 1024_uint64x2)
-#if defined(FAST_HEX_HAS_INT128)
-DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral16_scalar, __uint128_t, 1, 1_uint128)
-DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral16_scalar, __uint128_t, 1024, 1024_uint128)
-#endif
-
-#if defined(FAST_HEX_AVX) || defined(FAST_HEX_NEON)
-DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral8, uint64_t, 1, 1_uint64)
-DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral8, uint64_t, 8, 8_uint64)
-DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral8, uint64_t, 1024, 1024_uint64)
-DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral8, uint64_t, 1024 * 1024, 1048576_uint64)
-#endif // defined(FAST_HEX_AVX)
-
-#if defined(FAST_HEX_AVX2) || defined(FAST_HEX_NEON)
-DEFINE_ENCODE_INTEGRAL_BENCHMARK2x8(encode_integral2x8, 1, 1_uint64x2)
-DEFINE_ENCODE_INTEGRAL_BENCHMARK2x8(encode_integral2x8, 8, 8_uint64x2)
-DEFINE_ENCODE_INTEGRAL_BENCHMARK2x8(encode_integral2x8, 1024, 1024_uint64x2)
-DEFINE_ENCODE_INTEGRAL_BENCHMARK2x8(encode_integral2x8, 1024 * 1024, 1048576_uint64x2)
-
-DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral16, __uint128_t, 1, 1_uint128)
-DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral16, __uint128_t, 8, 8_uint128)
-DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral16, __uint128_t, 1024, 1024_uint128)
-DEFINE_ENCODE_INTEGRAL_BENCHMARK(encode_integral16, __uint128_t, 1024 * 1024, 1048576_uint128)
-#endif // defined(FAST_HEX_AVX2) || defined(FAST_HEX_NEON)
-
-#if defined(FAST_HEX_HAS_INT128)
-DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, __uint128_t, 1, 1_uint128)
-DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, __uint128_t, 8, 8_uint128)
-DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, __uint128_t, 64, 64_uint128)
-DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, __uint128_t, 1024, 1024_uint128)
-#endif
-
-
-DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, uint64_t, 1, 1_uint64)
-DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, uint64_t, 8, 8_uint64)
-DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, uint64_t, 64, 64_uint64)
-DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, uint64_t, 1024, 1024_uint64)
-
-DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, uint32_t, 1, 1_uint32)
-DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, uint32_t, 8, 8_uint32)
-DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, uint32_t, 64, 64_uint32)
-DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, uint32_t, 1024, 1024_uint32)
-
-DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, uint16_t, 1, 1_uint16)
-DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, uint16_t, 8, 8_uint16)
-DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, uint16_t, 64, 64_uint16)
-DEFINE_DECODE_INTEGRAL_BENCHMARK(decode_integral_naive, uint16_t, 1024, 1024_uint16)
-
-template <typename T>
-inline auto __attribute__((always_inline)) _decode_integral8_scalar(const uint8_t * src)
-{
-    return decode_integral8_scalar(src);
-}
-DEFINE_DECODE_INTEGRAL_BENCHMARK(_decode_integral8_scalar, uint64_t, 1, 1_uint64)
-DEFINE_DECODE_INTEGRAL_BENCHMARK(_decode_integral8_scalar, uint64_t, 1024, 1024_uint64)
-
-#if defined(FAST_HEX_AVX)
-template<typename T>
-inline auto __attribute__((always_inline)) _decode_integral8(const uint8_t* src)
-{
-    return decode_integral8(src);
-}
-template <>
-constexpr Isa required_isa<&_decode_integral8<uint64_t>> = Isa::Avx;
-DEFINE_DECODE_INTEGRAL_BENCHMARK(_decode_integral8, uint64_t, 1, 1_uint64)
-DEFINE_DECODE_INTEGRAL_BENCHMARK(_decode_integral8, uint64_t, 8, 8_uint64)
-DEFINE_DECODE_INTEGRAL_BENCHMARK(_decode_integral8, uint64_t, 64, 64_uint64)
-DEFINE_DECODE_INTEGRAL_BENCHMARK(_decode_integral8, uint64_t, 1024, 1024_uint64)
-#endif // defined(FAST_HEX_AVX)
-
-
 
 BENCHMARK_MAIN();
-
-// clang-format on

@@ -8,11 +8,7 @@ if(PROJECT_IS_TOP_LEVEL)
     option(fast_hex_DEVELOPER_MODE "Enable developer mode" OFF)
     # Off by default: it ties everything that is built to the CPU of the build machine
     option(fast_hex_ENABLE_MARCH_NATIVE "Enable -march=native" OFF)
-    option(fast_hex_ENABLE_NEON "NEON code will be used" ON)
 endif()
-
-# Outside the block above: add_subdirectory and FetchContent consumers get the namespace too
-option(fast_hex_USE_NAMESPACE "Use heks namespace for fast_hex library" ON)
 
 # ---- Warning guard ----
 

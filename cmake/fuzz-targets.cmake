@@ -12,10 +12,6 @@ function(add_fuzz_target TARGET_NAME FUZZ_SOURCE_FILE)
         PRIVATE -fsanitize=fuzzer -fsanitize=address
     )
 
-    # Apply SIMD support if available
-    include(${CMAKE_CURRENT_LIST_DIR}/../../cmake/avx_support.cmake)
-    fast_hex_target_enable_simd(${TARGET_NAME})
-
     add_test(
         NAME ${TARGET_NAME}
         COMMAND ${TARGET_NAME} -max_total_time=${FUZZ_RUNTIME}

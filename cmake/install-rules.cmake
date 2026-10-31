@@ -14,10 +14,8 @@ include(GNUInstallDirs)
 set(package fast_hex)
 
 install(
-    FILES
-        include/fast_hex/fast_hex_common.hpp
-        include/fast_hex/fast_hex_inline.hpp
-    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/fast_hex"
+    DIRECTORY include/
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
     COMPONENT fast_hex_Development
 )
 
@@ -34,6 +32,7 @@ install(
 write_basic_package_version_file(
     "${package}ConfigVersion.cmake"
     COMPATIBILITY SameMajorVersion
+    ARCH_INDEPENDENT
 )
 
 # Allow package maintainers to freely override the path for the configs
