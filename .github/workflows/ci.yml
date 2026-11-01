@@ -243,6 +243,55 @@ jobs:
           halt_on_error=1"
       run: ctest --output-on-failure --no-tests=error -j 4
 
+  # Big-endian AArch64: no hosted runner exists, so cross-compile with a
+  # Bootlin aarch64be toolchain and run the tests under QEMU user-mode
+  # emulation, which faithfully reproduces byte-order behavior.
+  test-arm64-be:
+    needs: [lint]
+
+    runs-on: ubuntu-26.04
+
+    env:
+      BOOTLIN_URL: https://toolchains.bootlin.com/downloads/releases/toolchains/aarch64be/tarballs/aarch64be--glibc--stable-2026.08-1.tar.xz
+
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        submodules: recursive
+
+    - name: Install QEMU
+      run: sudo apt-get update && sudo apt-get install qemu-user-static -y -q
+
+    - name: Cache toolchain
+      id: cache-tc
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.temp }}/aarch64be
+        key: bootlin-aarch64be-2026.08-1
+
+    - name: Fetch toolchain
+      if: steps.cache-tc.outputs.cache-hit != 'true'
+      run: |
+        wget -q "$BOOTLIN_URL"
+        mkdir -p "${{ runner.temp }}/aarch64be"
+        tar -xJf aarch64be--glibc--stable-2026.08-1.tar.xz \
+          -C "${{ runner.temp }}/aarch64be" --strip-components=1
+
+    - name: Set toolchain root
+      # runner.temp is not available in job-level env, so export it per step
+      run: echo "BOOTLIN_TC_ROOT=${{ runner.temp }}/aarch64be" >> "$GITHUB_ENV"
+
+    - name: Configure
+      run: cmake --preset=ci-ubuntu-arm
+        -D CMAKE_TOOLCHAIN_FILE=cmake/aarch64be-toolchain.cmake
+
+    - name: Build
+      run: cmake --build build -j 2
+
+    - name: Test
+      working-directory: build
+      run: ctest --output-on-failure --no-tests=error -j 2
+
   # Apple Silicon: Apple Clang, libc++ and 16 KiB pages
   test-macos:
     needs: [lint]
