@@ -16,9 +16,8 @@
 
 #    define FAST_HEX_TARGET_AVX2 __attribute__((target("avx2")))
 
-// The 32 byte loops of decodeHexVecLarge and encodeHexVecLarge are by https://github.com/zbjornson/fast-hex,
-// the decoder since reworked to decode nibbles via a pshufb delta table. The overlapping final blocks and the
-// code for inputs under 32 bytes are not from upstream
+// The 32-byte loops of decodeHexVecLarge and encodeHexVecLarge are from https://github.com/zbjornson/fast-hex,
+// with the decoder since reworked
 
 namespace heks
 {
@@ -149,7 +148,8 @@ FAST_HEX_TARGET_AVX2 inline void decodeHexVecLarge(uint8_t * dest, const uint8_t
     }
 }
 
-// len is number of dest bytes (i.e. half of src length). Always inlined into decodeHexAvx2, as in the v4 header
+// len is number of dest bytes (i.e. half of src length). Always inlined, so callers that inline decodeHexAvx2 get
+// the whole decoder
 FAST_HEX_TARGET_AVX2 __attribute__((always_inline)) inline void
 decodeHexVecImpl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, size_t len)
 {

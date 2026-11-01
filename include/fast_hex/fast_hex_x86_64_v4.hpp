@@ -86,9 +86,8 @@ FAST_HEX_TARGET_AVX512 inline __m512i unhexPairs512(__m512i value)
     return _mm512_maddubs_epi16(nibs, _mm512_set1_epi16(0x0110));
 }
 
-// len >= 32
-// Invalid input can make a lane of unhexPairs512 exceed 255 (it is always in [0, 4335]). The tails narrow with
-// unsigned saturation so they give the same bytes as packus in the main loop, and as the AVX2 code.
+// len >= 32. The tails narrow with unsigned saturation, like packus in the main loop, so invalid input decodes
+// the same as in the AVX2 code
 FAST_HEX_TARGET_AVX512 inline void decodeHexVec512Large(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, size_t len)
 {
     assert(len >= 32);
@@ -119,9 +118,8 @@ FAST_HEX_TARGET_AVX512 inline void decodeHexVec512Large(uint8_t * FAST_HEX_RESTR
     }
 }
 
-// len is number of dest bytes (i.e. half of src length). Always inlined into decodeHexAvx512, so that a caller which
-// inlines that one (e.g. one call per row) gets the whole decoder and not a call: by size, clang keeps this one out
-// of line
+// len is number of dest bytes (i.e. half of src length). Always inlined, so callers that inline decodeHexAvx512 get
+// the whole decoder: by size alone, Clang keeps it out of line
 FAST_HEX_TARGET_AVX512 __attribute__((always_inline)) inline void
 decodeHexVec512Impl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, size_t len)
 {

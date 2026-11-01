@@ -1,13 +1,12 @@
 #pragma once
 
-// AVX-512 functions for CPUs with AVX-512 F, BW, VL and VBMI: Ice Lake, Zen 4 and later. Skylake-X and
-// Cascade Lake don't have VBMI. Empty unless FAST_HEX_X86_64 is defined. See fast_hex.hpp for the contract.
+// AVX-512 functions for CPUs with AVX-512 F, BW, VL and VBMI: Ice Lake, Zen 4 and later. Empty unless
+// FAST_HEX_X86_64 is defined. See fast_hex.hpp for the contract.
 //
 //   encodeHexAvx512Vbmi, decodeHexAvx512Vbmi
 //   cpuHasAvx512Vbmi
 //
-// VBMI is not part of x86-64-v4, so a -march=x86-64-v4 build is not enough for these. fast_hex_x86_64_v4.hpp
-// has versions without VBMI.
+// VBMI is not part of x86-64-v4, so -march=x86-64-v4 is not enough. fast_hex_x86_64_v4.hpp works without it.
 
 #include "fast_hex_x86_64_v3.hpp" // Inputs under 32 bytes use the AVX2 code
 
@@ -137,7 +136,8 @@ decodeHexVecVbmiLarge(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX
     }
 }
 
-// len is number of dest bytes (i.e. half of src length). Always inlined into decodeHexAvx512Vbmi, as in the v4 header
+// len is number of dest bytes (i.e. half of src length). Always inlined, so callers that inline decodeHexAvx512Vbmi
+// get the whole decoder
 FAST_HEX_TARGET_AVX512_VBMI __attribute__((always_inline)) inline void
 decodeHexVecVbmiImpl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, size_t len)
 {

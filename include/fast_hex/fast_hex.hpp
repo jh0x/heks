@@ -1,33 +1,25 @@
 #pragma once
 
-// Hex encoding and decoding. Everything is in namespace heks. This header has the functions for any CPU:
+// Hex encoding and decoding, in namespace heks. This header has the scalar functions, for any CPU:
 //
 //   encodeHex, decodeHex                         buffers
 //   decodeHexLUT, decodeHexLUT4                  buffers, faster for short inputs
 //   encodeHexInt, decodeHexInt                   integers of any size
 //   encodeHexInt2x8                              two 64-bit integers
 //
-// Each of these headers adds the functions for one instruction set, and is empty where the compiler can't target it:
+// Each of these adds one instruction set, and is empty where the compiler can't target it:
 //
 //   fast_hex_x86_64_v3.hpp       AVX2                            (FAST_HEX_X86_64)
-//       encodeHexAvx2, decodeHexAvx2, encodeHexIntAvx2, decodeHexIntAvx2, encodeHexInt2x8Avx2, cpuHasAvx2
 //   fast_hex_x86_64_v4.hpp       AVX-512 F, BW, CD, DQ and VL    (FAST_HEX_X86_64)
-//       encodeHexAvx512, decodeHexAvx512, cpuHasAvx512
 //   fast_hex_x86_64_icelake.hpp  AVX-512 F, BW, VL and VBMI      (FAST_HEX_X86_64)
-//       encodeHexAvx512Vbmi, decodeHexAvx512Vbmi, cpuHasAvx512Vbmi
 //   fast_hex_arm_neon.hpp        NEON                            (FAST_HEX_NEON)
-//       encodeHexNeon, decodeHexNeon, encodeHexIntNeon, decodeHexIntNeon, encodeHexInt2x8Neon
 //   fast_hex_arm_sve.hpp         SVE                             (FAST_HEX_ARM_SVE)
-//       encodeHexSve, decodeHexSve, cpuHasSve
 //
-// Nothing here checks the CPU: the caller picks the function. The AVX2, AVX-512 and SVE functions carry their
-// own target attributes, so they are compiled whatever the build flags. Calling one is only valid where the
-// CPU has the instruction set: in a build that already requires it, or behind a check such as cpuHasAvx2() or
-// cpuHasSve().
+// Nothing here checks the CPU. The SIMD functions carry their own target attributes, so they always compile,
+// but only call one where the CPU supports it: in a build that requires it, or after cpuHasAvx2() and the like.
 //
-// RawLength is the length of the raw (binary) data: encoding reads len bytes and writes len * 2 hex chars,
-// decoding reads len * 2 hex chars and writes len bytes. Encoding takes the case as heks::lower or heks::upper.
-// Decoding accepts either case. Input that is not hex decodes to unspecified bytes, nothing worse.
+// RawLength is the length of the binary data: encoding reads len bytes and writes len * 2 hex chars, decoding
+// the reverse. Decoding accepts either case. Input that is not hex decodes to unspecified bytes, nothing worse.
 
 #include <array>
 #include <bit>
@@ -52,9 +44,8 @@
 #    define FAST_HEX_NEON 1
 #endif
 
-// SVE intrinsics in functions with target("+sve"), in a build not for SVE: GCC 14 and Clang 18 are the oldest
-// tested. The SVE functions run the NEON ones for short inputs, so a build without NEON (+nosimd) gets neither.
-// No Apple CPU has SVE. Clang's arm_sve.h refuses big-endian (up to Clang 22 at least); GCC 14's accepts it
+// SVE intrinsics under target("+sve") need GCC 14 or Clang 18. The SVE functions use NEON for short inputs, so
+// they need NEON too. No Apple CPU has SVE, and Clang's arm_sve.h refuses big-endian
 #if defined(FAST_HEX_NEON) && defined(__GNUC__) && defined(__aarch64__) && !defined(__APPLE__)
 #    if defined(__clang__)
 #        if __clang_major__ >= 18 && !defined(__ARM_BIG_ENDIAN)
@@ -207,9 +198,7 @@ void encodeHex(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRI
 
 inline void decodeHex(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
-    // Looping until dest reaches its end is what Clang (-O2 and up) and GCC (-O3 only) vectorize. GCC does
-    // not vectorize an i < length count when the length is only known at runtime, and Clang loads src a
-    // byte at a time when the loop runs until src reaches its end
+    // Loop until dest reaches its end: the form both GCC and Clang vectorize well
     uint8_t * const dest_end = dest + static_cast<size_t>(len);
     while (dest != dest_end)
     {
@@ -219,8 +208,7 @@ inline void decodeHex(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX
     }
 }
 
-// Table lookups, which no compiler vectorizes: faster than decodeHex below about 8 bytes, and level with it up to
-// about 16 when the length is not a multiple of 8, as decodeHex then decodes the last bytes one at a time
+// Table lookups, which compilers don't vectorize: faster than decodeHex below about 8 bytes
 inline void decodeHexLUT(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, RawLength len)
 {
     const auto raw_length = static_cast<size_t>(len);

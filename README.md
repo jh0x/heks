@@ -4,11 +4,11 @@ This is a fork of [zbjornson/fast-hex](https://github.com/zbjornson/fast-hex/) b
 with some CMake work (following closely [friendlyanon/cmake-init](https://github.com/friendlyanon/cmake-init) style),
 renaming and refactoring, testing (using [doctest](https://github.com/doctest/doctest)),
 fuzzing (LLVM) and benchmarking ([google/benchmark](https://github.com/google/benchmark)).
-It adds AVX-512 and NEON encoders, AVX-512 decoders, and encoders and decoders for 8, 16 and 32-byte integers.
+It adds AVX-512, NEON and SVE code, and encoders and decoders for 8, 16 and 32-byte integers.
 
 ## What is it?
 
-Hexadecimal encoding and decoding for x86-64 (scalar, AVX2, AVX-512) and ARM (scalar, NEON).
+Hexadecimal encoding and decoding for x86-64 (scalar, AVX2, AVX-512) and ARM (scalar, NEON, SVE).
 
 By **encoding** we understand taking input binary data (e.g. `[0x48, 0x65, 0x6C, 0x6C, 0x6F]`)
 and producing an output hex string (from our previous example: `48656C6C6F` or `48656c6c6f`).
@@ -18,22 +18,8 @@ and producing a corresponding binary data (in our example: `[0x48, 0x65, 0x6C, 0
 
 ## How to use it?
 
-This is a header-only C++20 library: include the headers for the instruction sets you want and link the
-`fast_hex::headers` CMake target, or copy the headers from [`include/fast_hex`](include/fast_hex) into a project.
-Everything is in namespace `heks`.
-
-| Header | Functions for | Runs on |
-|--------|---------------|---------|
-| [`fast_hex.hpp`](include/fast_hex/fast_hex.hpp) | any CPU | any CPU |
-| [`fast_hex_x86_64_v3.hpp`](include/fast_hex/fast_hex_x86_64_v3.hpp) | AVX2 | Haswell, Zen 1 and later |
-| [`fast_hex_x86_64_v4.hpp`](include/fast_hex/fast_hex_x86_64_v4.hpp) | AVX-512 F, BW, CD, DQ and VL | Skylake-X, Cascade Lake, Ice Lake, Zen 4 and later |
-| [`fast_hex_x86_64_icelake.hpp`](include/fast_hex/fast_hex_x86_64_icelake.hpp) | AVX-512 F, BW, VL and VBMI | Ice Lake, Zen 4 and later, but not Skylake-X or Cascade Lake |
-| [`fast_hex_arm_neon.hpp`](include/fast_hex/fast_hex_arm_neon.hpp) | NEON | AArch64, ARMv7 with NEON |
-| [`fast_hex_arm_sve.hpp`](include/fast_hex/fast_hex_arm_sve.hpp) | SVE | Graviton 3 and 4, and other AArch64 CPUs with SVE |
-
-Each ISA header includes the ones it builds on. On other platforms it is empty, so it can be included
-unconditionally. VBMI is not part of x86-64-v4, so a `-march=x86-64-v4` build is enough for the v4 functions but
-not for the icelake ones.
+This is a header-only C++20 library. Include the headers you need and link the `fast_hex::headers` CMake target,
+or copy [`include/fast_hex`](include/fast_hex) into your project. Everything is in namespace `heks`.
 
 ```cpp
 #include <fast_hex/fast_hex.hpp>
@@ -45,89 +31,60 @@ heks::decodeHex(data, hex, heks::RawLength{5});
 uint8_t id[32];
 heks::encodeHexInt(id, uint128_value, heks::lower);            // 32 hex chars, most significant first
 auto value = heks::decodeHexInt<unsigned __int128>(id);        // and back
+heks::encodeHexInt2x8(id, two_uint64s, heks::lower);           // two_uint64s[0], then two_uint64s[1]
 ```
 
-### Functions
+The SIMD functions take the same arguments as the scalar ones.
 
-| Function | Header | Available when |
-|----------|--------|----------------|
-| `encodeHex(dest, src, len, case)` | `fast_hex.hpp` | always |
-| `decodeHex(dest, src, len)` | `fast_hex.hpp` | always |
-| `decodeHexLUT(dest, src, len)`, `decodeHexLUT4(dest, src, len)` | `fast_hex.hpp` | always |
-| `encodeHexInt(dest, value, case)`, `decodeHexInt<T>(src)` | `fast_hex.hpp` | always |
-| `encodeHexInt2x8(dest, first, case)` | `fast_hex.hpp` | always |
-| `encodeHexAvx2(dest, src, len, case)`, `decodeHexAvx2(dest, src, len)` | `fast_hex_x86_64_v3.hpp` | `FAST_HEX_X86_64` |
-| `encodeHexIntAvx2(dest, value, case)`, `decodeHexIntAvx2<T>(src)` | `fast_hex_x86_64_v3.hpp` | `FAST_HEX_X86_64` |
-| `encodeHexInt2x8Avx2(dest, first, case)` | `fast_hex_x86_64_v3.hpp` | `FAST_HEX_X86_64` |
-| `cpuHasAvx2()` | `fast_hex_x86_64_v3.hpp` | `FAST_HEX_X86_64` |
-| `encodeHexAvx512(dest, src, len, case)`, `decodeHexAvx512(dest, src, len)` | `fast_hex_x86_64_v4.hpp` | `FAST_HEX_X86_64` |
-| `cpuHasAvx512()` | `fast_hex_x86_64_v4.hpp` | `FAST_HEX_X86_64` |
-| `encodeHexAvx512Vbmi(dest, src, len, case)`, `decodeHexAvx512Vbmi(dest, src, len)` | `fast_hex_x86_64_icelake.hpp` | `FAST_HEX_X86_64` |
-| `cpuHasAvx512Vbmi()` | `fast_hex_x86_64_icelake.hpp` | `FAST_HEX_X86_64` |
-| `encodeHexNeon(dest, src, len, case)`, `decodeHexNeon(dest, src, len)` | `fast_hex_arm_neon.hpp` | `FAST_HEX_NEON` |
-| `encodeHexIntNeon(dest, value, case)`, `decodeHexIntNeon<T>(src)` | `fast_hex_arm_neon.hpp` | `FAST_HEX_NEON` |
-| `encodeHexInt2x8Neon(dest, first, case)` | `fast_hex_arm_neon.hpp` | `FAST_HEX_NEON` |
-| `encodeHexSve(dest, src, len, case)`, `decodeHexSve(dest, src, len)` | `fast_hex_arm_sve.hpp` | `FAST_HEX_ARM_SVE` |
-| `cpuHasSve()` | `fast_hex_arm_sve.hpp` | `FAST_HEX_ARM_SVE` |
+| Header | Instruction set | Functions |
+|--------|-----------------|-----------|
+| [`fast_hex.hpp`](include/fast_hex/fast_hex.hpp) | any | `encodeHex`, `decodeHex`, `decodeHexLUT`, `decodeHexLUT4`, `encodeHexInt`, `decodeHexInt`, `encodeHexInt2x8` |
+| [`fast_hex_x86_64_v3.hpp`](include/fast_hex/fast_hex_x86_64_v3.hpp) | AVX2 (Haswell, Zen 1 and later) | `encodeHexAvx2`, `decodeHexAvx2`, `encodeHexIntAvx2`, `decodeHexIntAvx2`, `encodeHexInt2x8Avx2`, `cpuHasAvx2` |
+| [`fast_hex_x86_64_v4.hpp`](include/fast_hex/fast_hex_x86_64_v4.hpp) | AVX-512 F, BW, CD, DQ and VL (Skylake-X, Zen 4 and later) | `encodeHexAvx512`, `decodeHexAvx512`, `cpuHasAvx512` |
+| [`fast_hex_x86_64_icelake.hpp`](include/fast_hex/fast_hex_x86_64_icelake.hpp) | AVX-512 F, BW, VL and VBMI (Ice Lake, Zen 4 and later) | `encodeHexAvx512Vbmi`, `decodeHexAvx512Vbmi`, `cpuHasAvx512Vbmi` |
+| [`fast_hex_arm_neon.hpp`](include/fast_hex/fast_hex_arm_neon.hpp) | NEON (AArch64, ARMv7) | `encodeHexNeon`, `decodeHexNeon`, `encodeHexIntNeon`, `decodeHexIntNeon`, `encodeHexInt2x8Neon` |
+| [`fast_hex_arm_sve.hpp`](include/fast_hex/fast_hex_arm_sve.hpp) | SVE (Graviton 3 and 4) | `encodeHexSve`, `decodeHexSve`, `cpuHasSve` |
 
-`FAST_HEX_X86_64` is defined for GCC and Clang on x86-64. MSVC and 32-bit x86 only get the scalar functions.
-`FAST_HEX_NEON` is defined when the compiler targets NEON (`__ARM_NEON`).
-`FAST_HEX_ARM_SVE` is defined for GCC 14 and later and Clang 18 and later on AArch64, except on Apple platforms,
-whose CPUs have no SVE. `cpuHasSve()` can only tell on Linux and FreeBSD, and returns false elsewhere.
+Each SIMD header includes the ones it builds on, and is empty where the compiler can't target it, so you can include
+all of them. Guard calls with the macro for that instruction set:
 
-The three scalar decoders suit different lengths:
+- `FAST_HEX_X86_64`: GCC or Clang on x86-64. MSVC and 32-bit x86 only get the scalar functions.
+- `FAST_HEX_NEON`: the compiler targets NEON.
+- `FAST_HEX_ARM_SVE`: GCC 14+ or Clang 18+ on AArch64, but not on Apple, whose CPUs have no SVE.
+  `cpuHasSve()` only works on Linux and FreeBSD, and returns false elsewhere.
 
-- `decodeHex` computes each nibble with arithmetic, so the compiler turns it into vector code: Clang from `-O2`,
-  GCC only at `-O3`. It is the fastest scalar decoder from about 8 bytes up, or 16 when the length is not a
-  multiple of 8, as it then decodes the last bytes one at a time. On ARM, `decodeHexNeon` is faster at most
-  lengths (see below).
-- `decodeHexLUT` and `decodeHexLUT4` look each char up in a table, so they are never vectorized. They are faster
-  for shorter inputs, and with GCC at `-O2`. `decodeHexLUT4` also looks up the high nibble already shifted.
-
-On ARM, `encodeHexNeon` and `decodeHexNeon` finish inputs that are not a multiple of 16 bytes with vector blocks
-rather than scalar code, and inline for inputs up to 32 bytes. On Neoverse-N1 (Graviton 2) with Clang,
-`encodeHexNeon` takes about 3 ns for 8 to 15 bytes (the scalar tail took 8 to 14 ns), and `decodeHexNeon` takes
-6 ns for 31 bytes against 19 ns with `decodeHex`. On long inputs `decodeHexNeon` is about 25% faster than
-`decodeHex` with GCC, and level with it with Clang. Nothing uses more than the base AArch64 NEON instructions, so
-building for a newer Arm CPU (`-march=armv8.2-a+...`, `-mcpu=neoverse-n1`) makes no difference, and a copy built
-with `target("+sve")`, such as ClickHouse's `MULTITARGET_FUNCTION_*_ARM_SVE`, compiles the NEON functions to the
-same code.
-
-`encodeHexSve` and `decodeHexSve` run the NEON code up to 32 bytes and SVE above that, so they only pay off on
-longer inputs. On Graviton 3 (Neoverse-V1, 256-bit SVE), 1 KiB takes 64 ns against 74 ns with `encodeHexNeon` and
-76 ns against 99 ns with `decodeHexNeon` when built with Clang; with GCC, 62 ns against 89 ns and 77 ns against
-96 ns. Up to 32 bytes they are 0.2 to 0.6 ns slower when the caller is not built for SVE, as they are then called
-rather than inlined (see below). Where SVE vectors are 128 bits (Graviton 4), `encodeHexSve` runs the NEON loop and
-`decodeHexSve` keeps SVE, which was still 3 to 10% faster than NEON on Neoverse-V1 limited to 128-bit vectors.
-Neither was measured on such a CPU.
-
-On x86-64 with Clang, decoding 1 to 3 bytes takes about 1 to 3 ns with `decodeHexLUT4` against 2 to 5 ns with
-`decodeHex` or `decodeHexAvx2`. `decodeHexAvx2` is the fastest from about 7 bytes.
+VBMI is not part of x86-64-v4, so `-march=x86-64-v4` is enough for the v4 functions but not for the icelake ones.
 
 ### Contract
 
 - `RawLength` is the length of the binary data. Encoding reads `len` bytes and writes `len * 2` hex chars.
-  Decoding reads `len * 2` hex chars and writes `len` bytes. No function reads or writes outside those ranges.
-- `case` is `heks::lower` or `heks::upper`. Decoding accepts either case, mixed too.
-- Decoding does not validate its input: chars that are not hex decode to unspecified bytes, but never cause
-  undefined behavior.
+  Decoding does the reverse. No function reads or writes outside those ranges.
 - Pointers must be valid for those ranges, and source and destination must not overlap.
-- `encodeHexInt*` take any integer type stored in native byte order that can be copied with `memcpy`, including
-  `unsigned __int128` and 256-bit integer classes, and write `sizeof(T) * 2` hex chars, most significant first.
-  `decodeHexInt*<T>` read `sizeof(T) * 2` hex chars, most significant first, and return the `T`. The SIMD versions
-  take 8, 16 and 32-byte types.
-- `encodeHexInt2x8*` take a pointer to two 8-byte integers and write 32 hex chars: `first[0]` then `first[1]`,
-  each most significant first. This is not `encodeHexInt` of a 16-byte value, which on little-endian would write
-  `first[1]` first.
+- `case` is `heks::lower` or `heks::upper`. Decoding accepts either case, or a mix.
+- Decoding does not validate its input. Chars that are not hex give unspecified bytes, but never undefined behavior.
+- `encodeHexInt*` takes any integer type in native byte order that `memcpy` can copy, including
+  `unsigned __int128` and 256-bit integer classes, and writes `sizeof(T) * 2` hex chars, most significant first.
+  `decodeHexInt*<T>` reads them back. The SIMD versions take 8, 16 and 32-byte types.
+- `encodeHexInt2x8*` writes two 8-byte integers as 32 hex chars, `first[0]` then `first[1]`. On little-endian
+  this is not the same as `encodeHexInt` of one 16-byte value, which writes `first[1]` first.
+
+### Which function is fastest
+
+- `decodeHexLUT4` is the fastest decoder below about 8 bytes. It uses table lookups, which compilers don't
+  vectorize. Use it with GCC at `-O2` too, as GCC only vectorizes `decodeHex` at `-O3`.
+- `decodeHex` is the fastest scalar decoder above that, as the compiler vectorizes it.
+- On x86-64, `decodeHexAvx2` is the fastest from about 7 bytes.
+- On ARM, the NEON functions beat the scalar ones at most lengths. They use only base AArch64 NEON, so building
+  for a newer CPU, or with `+sve`, gives the same code.
+- The SVE functions run the NEON code up to 32 bytes, so they only help on longer inputs.
 
 ### Picking a function
 
-The library never checks the CPU: the caller picks the function. The AVX2, AVX-512 and SVE functions carry their
-own target attributes, so they are always compiled in and need no build flags, but calling one is only valid on a CPU
-that has the instruction set. Either:
+The library never checks the CPU: the caller picks the function. The AVX2, AVX-512 and SVE functions carry their own
+target attributes, so they always compile without build flags. Only call one where the CPU supports it:
 
-- call it from code that already requires the instruction set, e.g. a build with `-march=x86-64-v3`, or
-- check once with `cpuHasAvx2()`, `cpuHasAvx512()`, `cpuHasAvx512Vbmi()` or `cpuHasSve()` and pick:
+- from code built for that instruction set, e.g. with `-march=x86-64-v3`, or
+- after checking once with `cpuHasAvx2()`, `cpuHasAvx512()`, `cpuHasAvx512Vbmi()` or `cpuHasSve()`:
 
 ```cpp
 #include <fast_hex/fast_hex.hpp>
@@ -157,23 +114,16 @@ void toHex(uint8_t * dest, const uint8_t * src, size_t size)
 }
 ```
 
-Called from code built without AVX2, `encodeHexAvx2` is not inlined. That is fine for long inputs, but for many
-short ones (e.g. one call per row) check the CPU once and run the whole loop in a function built for AVX2, with
-`__attribute__((target("avx2")))` or a framework for it such as ClickHouse's `TargetSpecific`. The AVX2 functions
-can then inline into it, but whether they do is still the compiler's call by size: clang keeps the AVX-512 decoders
-out of line, so that loop makes one call per row. Put `[[clang::always_inline]]` on the call to force it (GCC inlines
-them as is). Don't build that one file with `-march=x86-64-v3` instead: the plain inline functions it uses would then
-be compiled with AVX2 too, which is the problem the next paragraph describes.
+The library has no function that picks for you. All functions are inline, so a picker compiled in files with
+different build flags would end up as one copy chosen by the linker, which could be the AVX2 one on a CPU without
+AVX2. Only the caller knows its build flags.
 
-The same goes for SVE. In ClickHouse, put the loop that calls `encodeHexSve` or `decodeHexSve` in
-`DECLARE_ARM_SVE_SPECIFIC_CODE` and the one that calls the NEON functions in `DECLARE_DEFAULT_CODE`, and pick with
-`isArchSupported(TargetArch::ARM_SVE)`. The `MULTITARGET_FUNCTION_*_ARM_SVE` macros don't fit: they compile one body
-for every target, x86-64 too, so it can't call the SVE functions, and their SVE copy of a body that calls the NEON
-functions is the same code.
-
-There are no functions that pick for you. All the functions are inline, so a picker compiled into files built with
-different flags would have one definition chosen by the linker, which could be the AVX2 one on a CPU without AVX2.
-The caller knows its build flags and is the one place where the choice is safe.
+Called from code built without AVX2, `encodeHexAvx2` is not inlined. That is fine for long inputs. For many short
+ones (e.g. one call per row), check the CPU once and run the whole loop in a function marked
+`__attribute__((target("avx2")))`, or `target("+sve")` for SVE, so the calls can inline. Clang may still keep the
+AVX-512 decoders out of line: put `[[clang::always_inline]]` on the call to force it. Don't build that file with
+`-march=x86-64-v3` instead: the inline scalar functions it uses would then be built with AVX2 too, which is the
+linker problem above.
 
 ## How to develop?
 
@@ -291,7 +241,6 @@ Typical variables you might want to tweak:
   The `ci-sanitize` preset turns it on.
 - `fast_hex_ENABLE_BENCHMARK` - whether to build benchmarks in `test/benchmark`.
 - `fast_hex_ENABLE_MARCH_NATIVE` - build the tests, fuzzers and benchmarks for the CPU of the build machine.
-  It used to be on by default, so turn it on when comparing benchmark results with older builds.
 
 [1]: https://cmake.org/cmake/help/latest/manual/cmake-presets.7.html
 [2]: https://cmake.org/download/

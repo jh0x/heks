@@ -6,9 +6,8 @@
 //   encodeHexNeon, decodeHexNeon
 //   encodeHexIntNeon, decodeHexIntNeon, encodeHexInt2x8Neon
 //
-// Inputs that are not a multiple of the vector width finish with a vector block that overlaps the previous one
-// rather than a scalar loop. The overlapped bytes are written twice with the same value, which is only valid
-// because source and destination never overlap.
+// Tails are a vector block that overlaps the previous one, not a scalar loop. This writes some bytes twice, which
+// is safe because source and destination don't overlap.
 
 #include "fast_hex.hpp"
 
@@ -70,8 +69,7 @@ inline void encodeHex16Neon(uint8_t * dest, uint8x16_t in, uint8x16_t lut)
     uint8x16_t lo_chars = neon_tbl_q(lut, vandq_u8(in, vdupq_n_u8(0x0F)));
     uint8x16x2_t interleaved = vzipq_u8(hi_chars, lo_chars);
 #    if defined(__clang__)
-    // Clang fuses a zip and its store into ST2, which is slower on Neoverse cores: about 10% on long inputs on
-    // Neoverse-N1. The empty asm hides that the stored values are zips
+    // Clang fuses the zip and stores into ST2, which is slower on Neoverse cores. The empty asm prevents that
     __asm__("" : "+w"(interleaved.val[0]), "+w"(interleaved.val[1]));
 #    endif
     vst1q_u8(dest, interleaved.val[0]);
@@ -99,8 +97,7 @@ inline void encodeHexNeonShort(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t *
 {
     if (len >= 8)
     {
-        // The first and last 8 bytes, which overlap below 16. Exactly 8 skips the second, as 16 does in
-        // encodeHexNeonImpl
+        // The first and last 8 bytes, which overlap below 16
         uint8x8_t a = vld1_u8(src);
         uint8x8_t b = vld1_u8(src + len - 8);
         encodeHex8Neon(dest, a, lut);
@@ -123,10 +120,9 @@ inline void encodeHexNeonShort(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t *
     }
 }
 
-// len > 32. Kept out of line, so the code for short inputs is small enough to inline into callers. The table
-// comes in a register from the inlined caller, which can keep it out of its own loop, rather than being loaded
-// at the start of every call. The last len % 16 bytes go through encodeHexNeonShort rather than a 16-byte block
-// overlapping the loop's last stores, which is slower on Neoverse-N1 than even the scalar code for one byte
+// len > 32. Out of line, so the short-input code stays small enough to inline. The table is passed in, so an
+// inlined caller can load it once outside its own loop. The tail goes through encodeHexNeonShort: a 16-byte block
+// overlapping the loop's last stores is slower on Neoverse-N1
 template <HexCase H>
 __attribute__((noinline)) void
 encodeHexNeonLarge(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, size_t len, uint8x16_t lut)
@@ -147,8 +143,7 @@ encodeHexNeonImpl(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RES
         return encodeHexNeonLarge<H>(dest, src, len, lut);
     if (len >= 16)
     {
-        // The first and last 16 bytes, which overlap below 32. Exactly 16 skips the second: storing the same
-        // 32 chars twice costs more than the branch
+        // The first and last 16 bytes, which overlap below 32. At exactly 16 the branch is cheaper than a second store
         uint8x16_t a = vld1q_u8(src);
         uint8x16_t b = vld1q_u8(src + len - 16);
         encodeHex16Neon(dest, a, lut);
@@ -223,8 +218,8 @@ inline void decodeHexNeonShort(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t *
     }
     else if (len > 0)
     {
-        // Unrolled by hand: as a loop, Clang vectorizes it, which costs more than these few bytes. The low nibble
-        // keeps only its 4 bits, as in the vector code's sli, so input that is not hex decodes the same at any length
+        // Unrolled by hand: Clang would vectorize a loop, which costs more for 1 to 3 bytes. The low nibble is
+        // masked like the vector code's sli, so invalid input decodes the same at any length
         auto byte
             = [src](size_t i) { return static_cast<uint8_t>((unhexBitManip(src[i * 2]) << 4) | (unhexBitManip(src[i * 2 + 1]) & 0x0F)); };
         dest[0] = byte(0);
