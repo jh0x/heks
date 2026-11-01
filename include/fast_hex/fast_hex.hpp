@@ -54,10 +54,10 @@
 
 // SVE intrinsics in functions with target("+sve"), in a build not for SVE: GCC 14 and Clang 18 are the oldest
 // tested. The SVE functions run the NEON ones for short inputs, so a build without NEON (+nosimd) gets neither.
-// No Apple CPU has SVE
+// No Apple CPU has SVE. Clang's arm_sve.h refuses big-endian (up to Clang 22 at least); GCC 14's accepts it
 #if defined(FAST_HEX_NEON) && defined(__GNUC__) && defined(__aarch64__) && !defined(__APPLE__)
 #    if defined(__clang__)
-#        if __clang_major__ >= 18
+#        if __clang_major__ >= 18 && !defined(__ARM_BIG_ENDIAN)
 #            define FAST_HEX_ARM_SVE 1
 #        endif
 #    elif __GNUC__ >= 14
