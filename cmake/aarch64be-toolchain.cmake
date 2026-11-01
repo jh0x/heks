@@ -34,5 +34,5 @@ set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
 # CTest runs every test executable through this automatically.
 # -cpu max,sve=on makes the SVE code paths reachable under emulation.
 set(CMAKE_CROSSCOMPILING_EMULATOR
-    "qemu-aarch64_be-static;-cpu;max,sve=on;-L;${CMAKE_SYSROOT}"
+    "qemu-aarch64_be;-cpu;max,sve=on;-L;${CMAKE_SYSROOT}"
 )

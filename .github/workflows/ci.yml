@@ -260,7 +260,9 @@ jobs:
         submodules: recursive
 
     - name: Install QEMU
-      run: sudo apt-get update && sudo apt-get install qemu-user-static -y -q
+      # qemu-user-static became a virtual package in Ubuntu 26.04; qemu-user
+      # provides the qemu-aarch64_be emulator binary used by the toolchain file
+      run: sudo apt-get update && sudo apt-get install qemu-user -y -q
 
     - name: Cache toolchain
       id: cache-tc
