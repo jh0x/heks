@@ -122,8 +122,7 @@ static constexpr TestCase<uint32_t> test_cases4[] = {
     {0xFFFFFFFF, "ffffffff"sv, "FFFFFFFF"sv},
 };
 
-// A 256-bit integer the way ClickHouse's UInt256 stores it: 64-bit limbs in native byte order,
-// least significant first on little-endian
+// A 256-bit integer as four 64-bit limbs in native byte order, least significant first on little-endian
 struct UInt256
 {
     uint64_t limbs[4];

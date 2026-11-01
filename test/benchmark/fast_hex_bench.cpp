@@ -115,7 +115,7 @@ void BM_hex_Adjacent(benchmark::State & state)
     state.SetBytesProcessed(state.iterations() * static_cast<int64_t>(size));
 }
 
-// A 256-bit integer the way ClickHouse's UInt256 stores it
+// A 256-bit integer as four 64-bit limbs
 struct UInt256
 {
     uint64_t limbs[4];

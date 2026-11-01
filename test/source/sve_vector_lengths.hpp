@@ -1,9 +1,8 @@
 #pragma once
 
-// Runs a test at each SVE vector length the CPU supports, so that the code for 128-bit vectors (Graviton 4, Neoverse
-// V2 and N2) is tested on CPUs with longer ones too. Linux only, and not when the tests are built for SVE
-// (fast_hex_ENABLE_MARCH_NATIVE on an SVE CPU), where code inlined here could keep values or stack slots sized by
-// the old length across the change: otherwise, at the current length.
+// Runs a test at each SVE vector length the CPU supports, so the 128-bit code is tested on CPUs with longer vectors.
+// Linux only, and not when the tests are built for SVE: code inlined here could keep values sized by the old length.
+// Otherwise the test runs once, at the current length.
 
 #include "fast_hex/fast_hex_arm_sve.hpp"
 

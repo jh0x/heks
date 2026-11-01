@@ -6,15 +6,13 @@
 //   encodeHexSve, decodeHexSve
 //   cpuHasSve
 //
-// Like the x86-64 functions, they carry their own target attribute, target("+sve") as in ClickHouse's ARM_SVE code,
-// so they need no build flags, but calling one is only valid where cpuHasSve() is true.
+// Like the x86-64 functions, they carry their own target attribute, so they need no build flags, but only call
+// them where cpuHasSve() is true.
 //
-// Up to 32 bytes they run the NEON code, which is faster there. Above that, an SVE loop over full vectors, then
-// one predicated vector for the rest, with no scalar code. Where SVE vectors are 128 bits (Graviton 4, Neoverse V2
-// and N2), no wider than NEON, encodeHexSve runs the NEON loop instead, as its SVE loop is 30% slower there, and
-// decodeHexSve keeps its SVE loop, still 3-10% faster than NEON. Both measured on Neoverse-V1 with the vector
-// length cut to 128 bits, not on those CPUs. There are no integer functions: the NEON ones already take an 8 to
-// 32-byte value in one or two vectors.
+// Up to 32 bytes they run the NEON code, which is faster there. Above that, an SVE loop and one predicated vector
+// for the rest. With 128-bit vectors (Graviton 4), NEON is faster for encoding but not for decoding, so only
+// encodeHexSve switches to the NEON loop. There are no integer functions: the NEON ones already fit 8 to 32 bytes
+// in one or two vectors.
 
 #include "fast_hex_arm_neon.hpp"
 
@@ -45,12 +43,12 @@ FAST_HEX_TARGET_SVE inline svuint8x2_t encodeHexSveVec(svbool_t pg, svuint8_t in
 {
     const svuint8_t hi = svtbl_u8(lut, svlsr_n_u8_x(pg, in, 4));
     const svuint8_t lo = svtbl_u8(lut, svand_n_u8_x(pg, in, 0x0F));
-    // Two zips and plain stores: an interleaving st2b is 3-7% slower on long inputs on Neoverse-V1
+    // Two zips and plain stores: an interleaving st2b is slower on Neoverse-V1
     return svcreate2_u8(svzip1_u8(hi, lo), svzip2_u8(hi, lo));
 }
 
-// len > 32. Out of line, like encodeHexNeonLarge. With 128-bit vectors, the NEON loop: a second call, which
-// costs 0.05 ns there, while checking the length in encodeHexSve instead cost 0.2 ns at 63 bytes with 256-bit vectors
+// len > 32. Out of line, like encodeHexNeonLarge. Checks for 128-bit vectors here rather than in encodeHexSve,
+// where the check cost more than the extra call
 template <HexCase H>
 FAST_HEX_TARGET_SVE __attribute__((noinline)) void
 encodeHexSveLarge(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RESTRICT src, size_t len)
@@ -81,9 +79,8 @@ encodeHexSveLarge(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RES
     }
 }
 
-// 2 * vl hex chars -> vl bytes, for the lanes in pg: hi << 4 | (lo & 0xF) of the unhexBitManip nibbles, as
-// decodeHexNeon, so the two decode input that is not hex the same. Neither nibble needs the & 0xF of
-// unhexBitManip first: the high one's upper bits leave when it is multiplied by 16, and the low one is masked after
+// 2 * vl hex chars -> vl bytes, for the lanes in pg. Computes hi << 4 | (lo & 0xF) like decodeHexNeon, so invalid
+// input decodes the same. The & 0xF in unhexBitManip is not needed: hi * 16 drops the high bits, and lo is masked
 FAST_HEX_TARGET_SVE inline svuint8_t decodeHexSveVec(svbool_t pg, const uint8_t * src)
 {
     const svuint8x2_t chars = svld2_u8(pg, src); // Even chars (high nibbles) in the first vector, odd in the second

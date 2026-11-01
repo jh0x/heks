@@ -148,8 +148,8 @@ TEST_CASE("decodeHexSve_invalid" * doctest::skip(!cpuHasSve()))
     heks_test::forEachSveVectorLength([] { testInvalidHexDecoding<decodeHexSve>(); });
 }
 
-// The output for invalid input is unspecified, but decodeHexSve computes it as decodeHexNeon does, which it runs up to
-// 32 bytes, so the output doesn't depend on the length. Covers the NEON paths, the SVE loop and its predicated tail.
+// The output for invalid input is unspecified, but decodeHexSve computes it as decodeHexNeon does, so they must
+// agree at any length. Covers the NEON paths, the SVE loop and its predicated tail.
 TEST_CASE("decodeHexSve_matches_neon_on_invalid" * doctest::skip(!cpuHasSve()))
 {
     heks_test::forEachSveVectorLength([] { testDecodersAgreeOnInvalid<decodeHexNeon, decodeHexSve>(); });
