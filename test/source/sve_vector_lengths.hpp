@@ -1,7 +1,9 @@
 #pragma once
 
 // Runs a test at each SVE vector length the CPU supports, so that the code for 128-bit vectors (Graviton 4, Neoverse
-// V2 and N2) is tested on CPUs with longer ones too. Linux only: elsewhere, at the current length.
+// V2 and N2) is tested on CPUs with longer ones too. Linux only, and not when the tests are built for SVE
+// (fast_hex_ENABLE_MARCH_NATIVE on an SVE CPU), where code inlined here could keep values or stack slots sized by
+// the old length across the change: otherwise, at the current length.
 
 #include "fast_hex/fast_hex_arm_sve.hpp"
 
@@ -22,7 +24,7 @@ namespace heks_test
 template <class F>
 void forEachSveVectorLength(F test)
 {
-#    if defined(__linux__) && defined(PR_SVE_GET_VL)
+#    if defined(__linux__) && defined(PR_SVE_GET_VL) && !defined(__ARM_FEATURE_SVE)
     const int original = prctl(PR_SVE_GET_VL);
     if (original >= 0)
     {
@@ -47,7 +49,10 @@ void forEachSveVectorLength(F test)
             CAPTURE(vector_bytes);
             test();
         }
-        return;
+        if (!tested.empty())
+            return;
+        // Every length was refused, by a seccomp filter say
+        MESSAGE("Couldn't set the SVE vector length: testing at the current one only");
     }
 #    endif
     test();

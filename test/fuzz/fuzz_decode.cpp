@@ -31,13 +31,12 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * Data, size_t Size)
         expected[i / 2] = static_cast<uint8_t>(i % 2 == 0 ? value << 4 : expected[i / 2] | value);
     }
 
+    // Checks the decoder on the valid input, then returns its output for the arbitrary input
     auto decode = [&](auto decode_func)
     {
-        std::vector<uint8_t> decoded(decoded_size);
-        // Arbitrary input: the output is unspecified, but nothing may crash or go out of bounds
-        decode_func(decoded.data(), Data, RawLength{decoded_size});
         // Valid input: the output must match. Poison the buffer with the complement of the expected
-        // output first, so a byte the decoder fails to write cannot pass with the previous call's value
+        // output first, so a byte the decoder fails to write cannot pass
+        std::vector<uint8_t> decoded(decoded_size);
         for (std::size_t i = 0; i < decoded_size; ++i)
         {
             decoded[i] = static_cast<uint8_t>(~expected[i]);
@@ -47,15 +46,14 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * Data, size_t Size)
         {
             std::abort();
         }
+        // Arbitrary input: the output is unspecified, but nothing may crash or go out of bounds
+        decode_func(decoded.data(), Data, RawLength{decoded_size});
+        return decoded;
     };
 
     // Two decoders that compute the same unspecified bytes for invalid input must agree on the arbitrary input
-    [[maybe_unused]] auto agree = [&](auto decode_a, auto decode_b)
+    [[maybe_unused]] auto agree = [](const std::vector<uint8_t> & a, const std::vector<uint8_t> & b)
     {
-        std::vector<uint8_t> a(decoded_size);
-        std::vector<uint8_t> b(decoded_size);
-        decode_a(a.data(), Data, RawLength{decoded_size});
-        decode_b(b.data(), Data, RawLength{decoded_size});
         if (a != b)
         {
             std::abort();
@@ -67,27 +65,27 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * Data, size_t Size)
     decode(decodeHexLUT4);
 #if defined(FAST_HEX_X86_64)
     static const bool has_avx2 = cpuHasAvx2();
+    std::vector<uint8_t> avx2;
     if (has_avx2)
-        decode(decodeHexAvx2);
+        avx2 = decode(decodeHexAvx2);
     static const bool has_avx512 = cpuHasAvx512();
     if (has_avx512)
-        decode(decodeHexAvx512);
-    if (has_avx2 && has_avx512)
-        agree(decodeHexAvx2, decodeHexAvx512);
+    {
+        const auto avx512 = decode(decodeHexAvx512);
+        if (has_avx2)
+            agree(avx2, avx512);
+    }
     static const bool has_avx512_vbmi = cpuHasAvx512Vbmi();
     if (has_avx512_vbmi)
         decode(decodeHexAvx512Vbmi);
 #endif
 #if defined(FAST_HEX_NEON)
-    decode(decodeHexNeon);
+    [[maybe_unused]] const auto neon = decode(decodeHexNeon);
 #endif
 #if defined(FAST_HEX_ARM_SVE)
     static const bool has_sve = cpuHasSve();
     if (has_sve)
-    {
-        decode(decodeHexSve);
-        agree(decodeHexNeon, decodeHexSve);
-    }
+        agree(neon, decode(decodeHexSve));
 #endif
     return 0;
 }

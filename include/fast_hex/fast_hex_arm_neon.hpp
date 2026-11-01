@@ -69,7 +69,7 @@ inline void encodeHex16Neon(uint8_t * dest, uint8x16_t in, uint8x16_t lut)
     uint8x16_t hi_chars = neon_tbl_q(lut, vshrq_n_u8(in, 4));
     uint8x16_t lo_chars = neon_tbl_q(lut, vandq_u8(in, vdupq_n_u8(0x0F)));
     uint8x16x2_t interleaved = vzipq_u8(hi_chars, lo_chars);
-#    if defined(__GNUC__)
+#    if defined(__clang__)
     // Clang fuses a zip and its store into ST2, which is slower on Neoverse cores: about 10% on long inputs on
     // Neoverse-N1. The empty asm hides that the stored values are zips
     __asm__("" : "+w"(interleaved.val[0]), "+w"(interleaved.val[1]));
@@ -99,11 +99,13 @@ inline void encodeHexNeonShort(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t *
 {
     if (len >= 8)
     {
-        // The first and last 8 bytes, which overlap below 16
+        // The first and last 8 bytes, which overlap below 16. Exactly 8 skips the second, as 16 does in
+        // encodeHexNeonImpl
         uint8x8_t a = vld1_u8(src);
         uint8x8_t b = vld1_u8(src + len - 8);
         encodeHex8Neon(dest, a, lut);
-        encodeHex8Neon(dest + (len - 8) * 2, b, lut);
+        if (len > 8)
+            encodeHex8Neon(dest + (len - 8) * 2, b, lut);
     }
     else if (len >= 4)
     {
@@ -198,12 +200,26 @@ inline void decodeHexNeonShort(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t *
         // The first and last 8 chars: 4 bytes each
         uint8x8_t first = vld1_u8(src);
         uint8x8_t last = vld1_u8(src + (len - 4) * 2);
-        // Each half as a 32-bit lane: through a buffer, Clang moves the bytes one at a time
-        const uint32x2_t out = vreinterpret_u32_u8(decodeHex8Neon(vuzp_u8(first, last)));
-        const uint32_t lo = vget_lane_u32(out, 0);
-        const uint32_t hi = vget_lane_u32(out, 1);
-        std::memcpy(dest, &lo, 4);
-        std::memcpy(dest + len - 4, &hi, 4);
+        const uint8x8_t bytes = decodeHex8Neon(vuzp_u8(first, last));
+        constexpr bool little = std::endian::native == std::endian::little;
+        if constexpr (little)
+        {
+            // Each half as a 32-bit lane: through a buffer, Clang moves the bytes one at a time
+            const uint32x2_t out = vreinterpret_u32_u8(bytes);
+            const uint32_t lo = vget_lane_u32(out, 0);
+            const uint32_t hi = vget_lane_u32(out, 1);
+            std::memcpy(dest, &lo, 4);
+            std::memcpy(dest + len - 4, &hi, 4);
+        }
+        else
+        {
+            // Through a buffer: on big-endian a 32-bit lane holds its 4 bytes in register order, which Clang
+            // stores reversed
+            uint8_t buf[8];
+            vst1_u8(buf, bytes);
+            std::memcpy(dest, buf, 4);
+            std::memcpy(dest + len - 4, buf + 4, 4);
+        }
     }
     else if (len > 0)
     {

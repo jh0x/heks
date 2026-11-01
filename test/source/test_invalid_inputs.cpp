@@ -74,6 +74,33 @@ void testInvalidHexDecoding()
     }
 }
 
+// The output for invalid input is unspecified, but two decoders that compute it the same way must agree
+template <auto DecodeA, auto DecodeB>
+void testDecodersAgreeOnInvalid()
+{
+    std::string src(2 * 300, '\0');
+    for (size_t i = 0; i < src.size(); ++i)
+        src[i] = static_cast<char>((i * 131 + 7) ^ (i >> 3)); // A mix of hex and non-hex bytes, including 0x80-0xFF
+    const std::pair<const char *, std::string> inputs[] = {{"mix", src},
+                                                           {"all 'Z'", std::string(src.size(), 'Z')},
+                                                           {"all 'G'", std::string(src.size(), 'G')},
+                                                           {"all 0xFF", std::string(src.size(), '\xFF')}};
+    for (const auto & [name, input] : inputs)
+    {
+        const auto * in = reinterpret_cast<const uint8_t *>(input.data());
+        for (size_t len = 0; len <= 300; ++len)
+        {
+            std::string a(len, '\0');
+            std::string b(len, '\0');
+            DecodeA(reinterpret_cast<uint8_t *>(a.data()), in, RawLength{len});
+            DecodeB(reinterpret_cast<uint8_t *>(b.data()), in, RawLength{len});
+            CAPTURE(name);
+            CAPTURE(len);
+            CHECK(a == b);
+        }
+    }
+}
+
 TEST_CASE("decodeHex_invalid")
 {
     testInvalidHexDecoding<decodeHex>();
@@ -104,25 +131,7 @@ TEST_CASE("decodeHexAvx512Vbmi_invalid" * doctest::skip(!cpuHasAvx512Vbmi()))
 // they must agree. Covers the 64-byte loop, the 32-byte step, the overlapping tail and the 17-31 byte path.
 TEST_CASE("decodeHexAvx512_matches_avx2_on_invalid" * doctest::skip(!cpuHasAvx2() || !cpuHasAvx512()))
 {
-    std::string src(2 * 300, '\0');
-    for (size_t i = 0; i < src.size(); ++i)
-        src[i] = static_cast<char>((i * 131 + 7) ^ (i >> 3)); // A mix of hex and non-hex bytes, including 0x80-0xFF
-    const std::pair<const char *, std::string> inputs[] = {
-        {"mix", src}, {"all 'Z'", std::string(src.size(), 'Z')}, {"all 0xFF", std::string(src.size(), '\xFF')}};
-    for (const auto & [name, input] : inputs)
-    {
-        const auto * in = reinterpret_cast<const uint8_t *>(input.data());
-        for (size_t len = 0; len <= 300; ++len)
-        {
-            std::string avx2(len, '\0');
-            std::string avx512(len, '\0');
-            decodeHexAvx2(reinterpret_cast<uint8_t *>(avx2.data()), in, RawLength{len});
-            decodeHexAvx512(reinterpret_cast<uint8_t *>(avx512.data()), in, RawLength{len});
-            CAPTURE(name);
-            CAPTURE(len);
-            CHECK(avx2 == avx512);
-        }
-    }
+    testDecodersAgreeOnInvalid<decodeHexAvx2, decodeHexAvx512>();
 }
 #endif
 
@@ -143,30 +152,6 @@ TEST_CASE("decodeHexSve_invalid" * doctest::skip(!cpuHasSve()))
 // 32 bytes, so the output doesn't depend on the length. Covers the NEON paths, the SVE loop and its predicated tail.
 TEST_CASE("decodeHexSve_matches_neon_on_invalid" * doctest::skip(!cpuHasSve()))
 {
-    std::string src(2 * 300, '\0');
-    for (size_t i = 0; i < src.size(); ++i)
-        src[i] = static_cast<char>((i * 131 + 7) ^ (i >> 3)); // A mix of hex and non-hex bytes, including 0x80-0xFF
-    const std::pair<const char *, std::string> inputs[] = {{"mix", src},
-                                                           {"all 'Z'", std::string(src.size(), 'Z')},
-                                                           {"all 'G'", std::string(src.size(), 'G')},
-                                                           {"all 0xFF", std::string(src.size(), '\xFF')}};
-    heks_test::forEachSveVectorLength(
-        [&inputs]
-        {
-            for (const auto & [name, input] : inputs)
-            {
-                const auto * in = reinterpret_cast<const uint8_t *>(input.data());
-                for (size_t len = 0; len <= 300; ++len)
-                {
-                    std::string neon(len, '\0');
-                    std::string sve(len, '\0');
-                    decodeHexNeon(reinterpret_cast<uint8_t *>(neon.data()), in, RawLength{len});
-                    decodeHexSve(reinterpret_cast<uint8_t *>(sve.data()), in, RawLength{len});
-                    CAPTURE(name);
-                    CAPTURE(len);
-                    CHECK(neon == sve);
-                }
-            }
-        });
+    heks_test::forEachSveVectorLength([] { testDecodersAgreeOnInvalid<decodeHexNeon, decodeHexSve>(); });
 }
 #endif

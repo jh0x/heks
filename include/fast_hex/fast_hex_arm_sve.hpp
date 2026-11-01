@@ -75,7 +75,9 @@ encodeHexSveLarge(uint8_t * FAST_HEX_RESTRICT dest, const uint8_t * FAST_HEX_RES
         const svbool_t pg = svwhilelt_b8_u64(i, len);
         const svuint8x2_t chars = encodeHexSveVec(pg, svld1_u8(pg, src + i), lut);
         svst1_u8(svwhilelt_b8_u64(i * 2, chars_len), dest + i * 2, svget2_u8(chars, 0));
-        svst1_u8(svwhilelt_b8_u64(i * 2 + vl, chars_len), dest + i * 2 + vl, svget2_u8(chars, 1));
+        // One vector on from the first store's address, so no pointer past the end of dest is formed when all the
+        // lanes are off, as at 33 bytes with 256-bit vectors
+        svst1_vnum_u8(svwhilelt_b8_u64(i * 2 + vl, chars_len), dest + i * 2, 1, svget2_u8(chars, 1));
     }
 }
 
