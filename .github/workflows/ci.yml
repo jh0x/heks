@@ -33,46 +33,6 @@ jobs:
       if: always()
       run: cmake -P cmake/spell.cmake
 
-  coverage:
-    needs: [lint]
-
-    runs-on: ubuntu-26.04
-
-    # To enable coverage, delete the last line from the conditional below and
-    # edit the "<name>" placeholder to your GitHub name.
-    # If you do not wish to use codecov, then simply delete this job from the
-    # workflow.
-    if: github.repository_owner == '<name>'
-      && false
-
-    steps:
-    - uses: actions/checkout@v7
-      with:
-        submodules: recursive
-
-    - name: Install LCov
-      run: sudo apt-get update -q
-        && sudo apt-get install lcov -q -y
-
-    - name: Configure
-      run: cmake --preset=ci-coverage
-
-    - name: Build
-      run: cmake --build build/coverage -j 2
-
-    - name: Test
-      working-directory: build/coverage
-      run: ctest --output-on-failure --no-tests=error -j 2
-
-    - name: Process coverage info
-      run: cmake --build build/coverage -t coverage
-
-    - name: Submit to codecov.io
-      uses: codecov/codecov-action@v7
-      with:
-        files: build/coverage/coverage.info
-        token: ${{ secrets.CODECOV_TOKEN }}
-
   sanitize:
     needs: [lint]
 
@@ -81,12 +41,12 @@ jobs:
         compiler: [gcc, clang-18, clang-19, clang-20, clang-21, clang-22]
         build_type: [Debug, Release]
         include:
-        - { compiler: gcc, cc: gcc, cxx: g++, tidy: clang-tidy-22 }
-        - { compiler: clang-18, cc: clang-18, cxx: clang++-18, tidy: clang-tidy-18 }
-        - { compiler: clang-19, cc: clang-19, cxx: clang++-19, tidy: clang-tidy-19 }
-        - { compiler: clang-20, cc: clang-20, cxx: clang++-20, tidy: clang-tidy-20 }
-        - { compiler: clang-21, cc: clang-21, cxx: clang++-21, tidy: clang-tidy-21 }
-        - { compiler: clang-22, cc: clang-22, cxx: clang++-22, tidy: clang-tidy-22 }
+        - { compiler: gcc, cxx: g++, tidy: clang-tidy-22 }
+        - { compiler: clang-18, cxx: clang++-18, tidy: clang-tidy-18 }
+        - { compiler: clang-19, cxx: clang++-19, tidy: clang-tidy-19 }
+        - { compiler: clang-20, cxx: clang++-20, tidy: clang-tidy-20 }
+        - { compiler: clang-21, cxx: clang++-21, tidy: clang-tidy-21 }
+        - { compiler: clang-22, cxx: clang++-22, tidy: clang-tidy-22 }
 
     runs-on: ubuntu-26.04
 
@@ -103,9 +63,7 @@ jobs:
         sudo apt-get update && sudo apt-get install build-essential cmake git clang-18 clang-19 clang-20 clang-21 clang-22 clang-tidy-18 clang-tidy-19 clang-tidy-20 clang-tidy-21 clang-tidy-22 cppcheck -y -q
 
     - name: Configure
-      shell: pwsh
       run: cmake --preset=ci-ubuntu
-        -D CMAKE_C_COMPILER=${{ matrix.cc }}
         -D CMAKE_CXX_COMPILER=${{ matrix.cxx }}
         -D CMAKE_BUILD_TYPE=${{ matrix.build_type }}
         -D fast_hex_ENABLE_SANITIZERS=ON
@@ -132,21 +90,19 @@ jobs:
 
     strategy:
       matrix:
-        os: [ubuntu-26.04]
-
         compiler: [gcc, clang-18, clang-19, clang-20, clang-21, clang-22]
 
         build_type: [Debug, Release]
 
         include:
-        - { compiler: gcc, cc: gcc, cxx: g++, tidy: clang-tidy-22 }
-        - { compiler: clang-18, cc: clang-18, cxx: clang++-18, tidy: clang-tidy-18 }
-        - { compiler: clang-19, cc: clang-19, cxx: clang++-19, tidy: clang-tidy-19 }
-        - { compiler: clang-20, cc: clang-20, cxx: clang++-20, tidy: clang-tidy-20 }
-        - { compiler: clang-21, cc: clang-21, cxx: clang++-21, tidy: clang-tidy-21 }
-        - { compiler: clang-22, cc: clang-22, cxx: clang++-22, tidy: clang-tidy-22 }
+        - { compiler: gcc, cxx: g++, tidy: clang-tidy-22 }
+        - { compiler: clang-18, cxx: clang++-18, tidy: clang-tidy-18 }
+        - { compiler: clang-19, cxx: clang++-19, tidy: clang-tidy-19 }
+        - { compiler: clang-20, cxx: clang++-20, tidy: clang-tidy-20 }
+        - { compiler: clang-21, cxx: clang++-21, tidy: clang-tidy-21 }
+        - { compiler: clang-22, cxx: clang++-22, tidy: clang-tidy-22 }
 
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-26.04
 
     env:
       CXX: ${{ matrix.cxx }}
@@ -157,20 +113,11 @@ jobs:
         submodules: recursive
 
     - name: Install static analyzers
-      if: matrix.os == 'ubuntu-26.04'
       run: >-
         sudo apt-get update && sudo apt-get install build-essential cmake git clang-18 clang-19 clang-20 clang-21 clang-22 clang-tidy-18 clang-tidy-19 clang-tidy-20 clang-tidy-21 clang-tidy-22 cppcheck -y -q
 
-    - name: Setup MultiToolTask
-      if: matrix.os == 'windows-2022'
-      run: |
-        Add-Content "$env:GITHUB_ENV" 'UseMultiToolTask=true'
-        Add-Content "$env:GITHUB_ENV" 'EnforceProcessCountAcrossBuilds=true'
-
     - name: Configure
-      shell: pwsh
-      run: cmake "--preset=ci-$("${{ matrix.os }}".split("-")[0])"
-        -D CMAKE_C_COMPILER=${{ matrix.cc }}
+      run: cmake --preset=ci-ubuntu
         -D CMAKE_CXX_COMPILER=${{ matrix.cxx }}
         -D CMAKE_BUILD_TYPE=${{ matrix.build_type }}
         -D "CMAKE_CXX_CLANG_TIDY=${{ matrix.tidy }};--header-filter=^${{ github.workspace }}/"
@@ -198,12 +145,12 @@ jobs:
         sanitizers: [OFF, ON]
 
         include:
-        - { compiler: gcc, cc: gcc, cxx: g++ }
-        - { compiler: clang-18, cc: clang-18, cxx: clang++-18 }
-        - { compiler: clang-19, cc: clang-19, cxx: clang++-19 }
-        - { compiler: clang-20, cc: clang-20, cxx: clang++-20 }
-        - { compiler: clang-21, cc: clang-21, cxx: clang++-21 }
-        - { compiler: clang-22, cc: clang-22, cxx: clang++-22 }
+        - { compiler: gcc, cxx: g++ }
+        - { compiler: clang-18, cxx: clang++-18 }
+        - { compiler: clang-19, cxx: clang++-19 }
+        - { compiler: clang-20, cxx: clang++-20 }
+        - { compiler: clang-21, cxx: clang++-21 }
+        - { compiler: clang-22, cxx: clang++-22 }
 
     runs-on: ubuntu-26.04-arm
 
@@ -220,9 +167,7 @@ jobs:
         sudo apt-get update && sudo apt-get install build-essential cmake git ${{ matrix.compiler }} -y -q
 
     - name: Configure
-      shell: pwsh
       run: cmake --preset=ci-ubuntu-arm
-        -D CMAKE_C_COMPILER=${{ matrix.cc }}
         -D CMAKE_CXX_COMPILER=${{ matrix.cxx }}
         -D CMAKE_BUILD_TYPE=${{ matrix.build_type }}
         -D fast_hex_ENABLE_SANITIZERS=${{ matrix.sanitizers }}
@@ -348,9 +293,7 @@ jobs:
         sudo apt-get update && sudo apt-get install build-essential cmake git clang-18 clang-tidy-18 cppcheck -y -q
 
     - name: Configure
-      shell: pwsh
       run: cmake --preset=ci-ubuntu
-        -D CMAKE_C_COMPILER=clang-18
         -D CMAKE_CXX_COMPILER=clang++-18
         -D CMAKE_BUILD_TYPE=Release
         -D fast_hex_ENABLE_FUZZ=ON
@@ -379,9 +322,7 @@ jobs:
         sudo apt-get update && sudo apt-get install build-essential cmake git clang-18 -y -q
 
     - name: Configure
-      shell: pwsh
       run: cmake --preset=ci-ubuntu-arm
-        -D CMAKE_C_COMPILER=clang-18
         -D CMAKE_CXX_COMPILER=clang++-18
         -D CMAKE_BUILD_TYPE=Release
         -D fast_hex_ENABLE_FUZZ=ON
@@ -392,53 +333,3 @@ jobs:
     - name: Fuzz
       working-directory: build
       run: ctest --output-on-failure -R fuzz -j 1
-
-  docs:
-    # Deploy docs only when builds succeed
-    needs: [sanitize, test, fuzz]
-
-    runs-on: ubuntu-26.04
-
-    # To enable, first you have to create an orphaned gh-pages branch:
-    #
-    #    git switch --orphan gh-pages
-    #    git commit --allow-empty -m "Initial commit"
-    #    git push -u origin gh-pages
-    #
-    # Edit the <name> placeholder below to your GitHub name, so this action
-    # runs only in your repository and no one else's fork. After these, delete
-    # this comment and the last line in the conditional below.
-    # If you do not wish to use GitHub Pages for deploying documentation, then
-    # simply delete this job similarly to the coverage one.
-    if: github.ref == 'refs/heads/master'
-      && github.event_name == 'push'
-      && github.repository_owner == '<name>'
-      && false
-
-    permissions:
-      contents: write
-
-    steps:
-    - uses: actions/checkout@v7
-      with:
-        submodules: recursive
-
-    - uses: actions/setup-python@v7
-      with: { python-version: "3.12" }
-
-    - name: Install m.css dependencies
-      run: pip3 install jinja2 Pygments
-
-    - name: Install Doxygen
-      run: sudo apt-get update -q
-        && sudo apt-get install doxygen -q -y
-
-    - name: Build docs
-      run: cmake "-DPROJECT_SOURCE_DIR=$PWD" "-DPROJECT_BINARY_DIR=$PWD/build"
-        -P cmake/docs-ci.cmake
-
-    - name: Deploy docs
-      uses: peaceiris/actions-gh-pages@v4
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: build/docs/html
