@@ -128,8 +128,14 @@ jobs:
     - name: Install
       run: cmake --install build --config ${{ matrix.build_type }} --prefix prefix
 
+    - name: Show CPU
+      run: lscpu
+
     - name: Test
       working-directory: build
+      # Fail rather than skip the AVX2 tests if a runner's CPU lacks it
+      env:
+        FAST_HEX_TEST_REQUIRE: avx2
       run: ctest --output-on-failure --no-tests=error -C ${{ matrix.build_type }} -j 2
 
   test-arm64:
@@ -164,7 +170,7 @@ jobs:
 
     - name: Install dependencies
       run: >-
-        sudo apt-get update && sudo apt-get install build-essential cmake git ${{ matrix.compiler }} -y -q
+        sudo apt-get update && sudo apt-get install build-essential cmake git qemu-user ${{ matrix.compiler }} -y -q
 
     - name: Configure
       run: cmake --preset=ci-ubuntu-arm
@@ -175,9 +181,14 @@ jobs:
     - name: Build
       run: cmake --build build -j 4
 
+    - name: Show CPU
+      run: lscpu
+
     - name: Test
       working-directory: build
       env:
+        # sve too: the sanitizer builds run the SVE code here only, not under QEMU
+        FAST_HEX_TEST_REQUIRE: neon,sve
         ASAN_OPTIONS: "strict_string_checks=1:\
           detect_stack_use_after_return=1:\
           check_initialization_order=1:\
@@ -187,6 +198,17 @@ jobs:
         UBSAN_OPTIONS: "print_stacktrace=1:\
           halt_on_error=1"
       run: ctest --output-on-failure --no-tests=error -j 4
+
+    # The runners' CPUs have 128-bit SVE vectors only, where encodeHexSve hands
+    # over to NEON. QEMU's "max" CPU has every length up to 2048 bits, and the
+    # tests run at each: sve-vl=16 fails the step unless every SVE test ran at
+    # all 16 of them.
+    # Not the sanitizer builds: ASan does not run under QEMU
+    - name: Test SVE at every vector length under QEMU
+      if: matrix.sanitizers == 'OFF'
+      env:
+        FAST_HEX_TEST_REQUIRE: neon,sve,sve-vl=16
+      run: qemu-aarch64 -cpu max,sve=on build/test/source/fast_hex_test
 
   # Big-endian AArch64: no hosted runner exists, so cross-compile with a
   # Bootlin aarch64be toolchain and run the tests under QEMU user-mode
@@ -237,7 +259,91 @@ jobs:
 
     - name: Test
       working-directory: build
+      env:
+        FAST_HEX_TEST_REQUIRE: neon,sve,sve-vl=16
       run: ctest --output-on-failure --no-tests=error -j 2
+
+  # 32-bit ARMv7 with NEON, where the NEON code falls back from the AArch64-only
+  # instructions: cross-compile and run the tests under QEMU user-mode emulation
+  test-armv7:
+    needs: [lint]
+
+    strategy:
+      matrix:
+        build_type: [Debug, Release]
+
+    runs-on: ubuntu-26.04
+
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        submodules: recursive
+
+    - name: Install dependencies
+      run: >-
+        sudo apt-get update && sudo apt-get install cmake g++-arm-linux-gnueabihf qemu-user -y -q
+
+    - name: Configure
+      run: cmake --preset=ci-ubuntu-arm
+        -D CMAKE_TOOLCHAIN_FILE=cmake/armv7-toolchain.cmake
+        -D CMAKE_BUILD_TYPE=${{ matrix.build_type }}
+
+    - name: Build
+      run: cmake --build build -j 2
+
+    - name: Test
+      working-directory: build
+      env:
+        FAST_HEX_TEST_REQUIRE: neon
+      run: ctest --output-on-failure --no-tests=error -j 2
+
+  # AVX-512 and VBMI: the hosted runners' CPUs have neither, so the tests for
+  # them skip there. Intel SDE emulates an Ice Lake server CPU, which has both
+  test-x86-sde:
+    needs: [lint]
+
+    strategy:
+      matrix:
+        compiler: [gcc, clang-22]
+
+        include:
+        - { compiler: gcc, cxx: g++ }
+        - { compiler: clang-22, cxx: clang++-22 }
+
+    runs-on: ubuntu-26.04
+
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        submodules: recursive
+
+    - name: Install dependencies
+      run: >-
+        sudo apt-get update && sudo apt-get install build-essential cmake ${{ matrix.compiler }} -y -q
+
+    - name: Install Intel SDE
+      uses: petarpetrovt/setup-sde@v6.0
+
+    # No static analyzers: the test job runs them
+    - name: Configure
+      run: cmake --preset=ci-ubuntu
+        -D CMAKE_CXX_COMPILER=${{ matrix.cxx }}
+        -D CMAKE_BUILD_TYPE=Release
+        -D CMAKE_CXX_CLANG_TIDY=
+        -D CMAKE_CXX_CPPCHECK=
+
+    - name: Build
+      run: cmake --build build -j 2
+
+    # SDE attaches to the test with ptrace, which Ubuntu restricts by default
+    - name: Allow ptrace
+      run: sudo sysctl -w kernel.yama.ptrace_scope=0
+
+    - name: Test
+      env:
+        FAST_HEX_TEST_REQUIRE: avx2,avx512,avx512vbmi
+      run: >-
+        "$SDE_PATH/sde64" -icx -- build/test/source/fast_hex_test
 
   # Apple Silicon: Apple Clang, libc++ and 16 KiB pages
   test-macos:
@@ -276,6 +382,7 @@ jobs:
           halt_on_error=1"
         UBSAN_OPTIONS: "print_stacktrace=1:\
           halt_on_error=1"
+        FAST_HEX_TEST_REQUIRE: neon
       run: ctest --output-on-failure --no-tests=error -C ${{ matrix.build_type }} -j 3
 
   fuzz:

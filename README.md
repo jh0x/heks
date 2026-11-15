@@ -48,7 +48,8 @@ The SIMD functions take the same arguments as the scalar ones.
 Each SIMD header includes the ones it builds on, and is empty where the compiler can't target it, so you can include
 all of them. Guard calls with the macro for that instruction set:
 
-- `FAST_HEX_X86_64`: GCC or Clang on x86-64. MSVC and 32-bit x86 only get the scalar functions.
+- `FAST_HEX_X86_64`: GCC or Clang on x86-64. 32-bit x86 only gets the scalar functions. MSVC and clang-cl are not
+  supported: the headers stop them with an `#error`.
 - `FAST_HEX_NEON`: the compiler targets NEON.
 - `FAST_HEX_ARM_SVE`: GCC 14+ or Clang 18+ on AArch64, but not on Apple, whose CPUs have no SVE.
   `cpuHasSve()` only works on Linux and FreeBSD, and returns false elsewhere.
@@ -61,7 +62,8 @@ VBMI is not part of x86-64-v4, so `-march=x86-64-v4` is enough for the v4 functi
   Decoding does the reverse. No function reads or writes outside those ranges.
 - Pointers must be valid for those ranges, and source and destination must not overlap.
 - `case` is `heks::lower` or `heks::upper`. Decoding accepts either case, or a mix.
-- Decoding does not validate its input. Chars that are not hex give unspecified bytes, but never undefined behavior.
+- Decoding does not validate its input. If any char is not hex, every byte of the output is unspecified, but there
+  is never undefined behavior, nor a read or write outside the ranges above.
 - `encodeHexInt*` takes any integer type in native byte order that `memcpy` can copy, including
   `unsigned __int128` and 256-bit integer classes, and writes `sizeof(T) * 2` hex chars, most significant first.
   `decodeHexInt*<T>` reads them back. The SIMD versions take 8, 16 and 32-byte types.
@@ -241,6 +243,25 @@ Typical variables you might want to tweak:
   The `ci-sanitize` preset turns it on.
 - `fast_hex_ENABLE_BENCHMARK` - whether to build benchmarks in `test/benchmark`.
 - `fast_hex_ENABLE_MARCH_NATIVE` - build the tests, fuzzers and benchmarks for the CPU of the build machine.
+
+The tests for an instruction set skip themselves on a CPU without it. To make sure they ran, set the
+`FAST_HEX_TEST_REQUIRE` environment variable to a comma-separated list of `avx2`, `avx512`, `avx512vbmi`, `neon`
+and `sve`: the test run then fails unless at least one test case for each of those ran, and none was skipped for
+want of the CPU. So a filter such as `-tc=encodeHexAvx2` is fine with `avx2`, but not one that leaves out every
+AVX2 test case. Add `sve-vl` to also fail unless every SVE test case ran at each vector length the CPU has, and
+at more than one, or `sve-vl=16` to say at how many.
+
+```sh
+FAST_HEX_TEST_REQUIRE=avx2,avx512 ctest --preset=dev
+```
+
+To run them for a CPU you don't have, use an emulator, as the CI does:
+
+- AVX-512 and VBMI: [Intel SDE](https://www.intel.com/content/www/us/en/developer/articles/tool/software-development-emulator.html),
+  `sde64 -icx -- build/dev/test/source/fast_hex_test`.
+- SVE at every vector length, on an AArch64 machine: `qemu-aarch64 -cpu max,sve=on build/dev/test/source/fast_hex_test`.
+- 32-bit ARMv7 with NEON: configure with `-D CMAKE_TOOLCHAIN_FILE=cmake/armv7-toolchain.cmake`.
+- Big-endian AArch64: configure with `-D CMAKE_TOOLCHAIN_FILE=cmake/aarch64be-toolchain.cmake`.
 
 [1]: https://cmake.org/cmake/help/latest/manual/cmake-presets.7.html
 [2]: https://cmake.org/download/

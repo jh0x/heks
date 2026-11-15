@@ -1,3 +1,4 @@
+#include "cpu_feature_tests.hpp"
 #include "fast_hex/fast_hex.hpp"
 #include "fast_hex/fast_hex_arm_neon.hpp"
 #include "fast_hex/fast_hex_arm_sve.hpp"
@@ -8,6 +9,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstddef>
 #include <iomanip>
 #include <sstream>
 #include <string>
@@ -390,71 +392,71 @@ TEST_CASE("hex_length_sweep")
 }
 
 #if defined(FAST_HEX_X86_64)
-TEST_CASE("encodeHexAvx2" * doctest::skip(!cpuHasAvx2()))
+TEST_CASE("encodeHexAvx2" * heks_test::avx2())
 {
     testHexEncoding<encodeHexAvx2<lower_t>, encodeHexAvx2<upper_t>>();
 }
-TEST_CASE("decodeHexAvx2_valid" * doctest::skip(!cpuHasAvx2()))
+TEST_CASE("decodeHexAvx2_valid" * heks_test::avx2())
 {
     testHexDecoding<decodeHexAvx2>();
 }
-TEST_CASE("hexAvx2_length_sweep" * doctest::skip(!cpuHasAvx2()))
+TEST_CASE("hexAvx2_length_sweep" * heks_test::avx2())
 {
     testHexLengthSweep<encodeHexAvx2<lower_t>, encodeHexAvx2<upper_t>, decodeHexAvx2>();
 }
 
-TEST_CASE("encodeHexAvx512" * doctest::skip(!cpuHasAvx512()))
+TEST_CASE("encodeHexAvx512" * heks_test::avx512())
 {
     testHexEncoding<encodeHexAvx512<lower_t>, encodeHexAvx512<upper_t>>();
 }
-TEST_CASE("decodeHexAvx512_valid" * doctest::skip(!cpuHasAvx512()))
+TEST_CASE("decodeHexAvx512_valid" * heks_test::avx512())
 {
     testHexDecoding<decodeHexAvx512>();
 }
-TEST_CASE("hexAvx512_length_sweep" * doctest::skip(!cpuHasAvx512()))
+TEST_CASE("hexAvx512_length_sweep" * heks_test::avx512())
 {
     testHexLengthSweep<encodeHexAvx512<lower_t>, encodeHexAvx512<upper_t>, decodeHexAvx512>();
 }
 
-TEST_CASE("encodeHexAvx512Vbmi" * doctest::skip(!cpuHasAvx512Vbmi()))
+TEST_CASE("encodeHexAvx512Vbmi" * heks_test::avx512vbmi())
 {
     testHexEncoding<encodeHexAvx512Vbmi<lower_t>, encodeHexAvx512Vbmi<upper_t>>();
 }
-TEST_CASE("decodeHexAvx512Vbmi_valid" * doctest::skip(!cpuHasAvx512Vbmi()))
+TEST_CASE("decodeHexAvx512Vbmi_valid" * heks_test::avx512vbmi())
 {
     testHexDecoding<decodeHexAvx512Vbmi>();
 }
-TEST_CASE("hexAvx512Vbmi_length_sweep" * doctest::skip(!cpuHasAvx512Vbmi()))
+TEST_CASE("hexAvx512Vbmi_length_sweep" * heks_test::avx512vbmi())
 {
     testHexLengthSweep<encodeHexAvx512Vbmi<lower_t>, encodeHexAvx512Vbmi<upper_t>, decodeHexAvx512Vbmi>();
 }
 #endif
 
 #if defined(FAST_HEX_NEON)
-TEST_CASE("encodeHexNeon")
+TEST_CASE("encodeHexNeon" * heks_test::neon())
 {
     testHexEncoding<encodeHexNeon<lower_t>, encodeHexNeon<upper_t>>();
 }
-TEST_CASE("decodeHexNeon_valid")
+TEST_CASE("decodeHexNeon_valid" * heks_test::neon())
 {
     testHexDecoding<decodeHexNeon>();
 }
-TEST_CASE("hexNeon_length_sweep")
+TEST_CASE("hexNeon_length_sweep" * heks_test::neon())
 {
     testHexLengthSweep<encodeHexNeon<lower_t>, encodeHexNeon<upper_t>, decodeHexNeon>();
 }
 #endif
 
 #if defined(FAST_HEX_ARM_SVE)
-TEST_CASE("encodeHexSve" * doctest::skip(!cpuHasSve()))
+TEST_CASE("encodeHexSve" * heks_test::sve())
 {
     heks_test::forEachSveVectorLength([] { testHexEncoding<encodeHexSve<lower_t>, encodeHexSve<upper_t>>(); });
 }
-TEST_CASE("decodeHexSve_valid" * doctest::skip(!cpuHasSve()))
+TEST_CASE("decodeHexSve_valid" * heks_test::sve())
 {
     heks_test::forEachSveVectorLength([] { testHexDecoding<decodeHexSve>(); });
 }
-TEST_CASE("hexSve_length_sweep" * doctest::skip(!cpuHasSve()))
+TEST_CASE("hexSve_length_sweep" * heks_test::sve())
 {
     heks_test::forEachSveVectorLength([] { testHexLengthSweep<encodeHexSve<lower_t>, encodeHexSve<upper_t>, decodeHexSve>(); });
 }

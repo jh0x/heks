@@ -5,6 +5,7 @@
 #include "fast_hex/fast_hex_x86_64_icelake.hpp"
 #include "fast_hex/fast_hex_x86_64_v3.hpp"
 #include "fast_hex/fast_hex_x86_64_v4.hpp"
+#include "sve_set_vector_length.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -77,10 +78,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * Data, size_t Size)
 #if defined(FAST_HEX_NEON)
         decode(encoded, decodeHexNeon);
 #endif
-#if defined(FAST_HEX_ARM_SVE)
-        if (has_sve)
-            decode(encoded, decodeHexSve);
-#endif
+        // decodeHexSve is below, with the rest of SVE
     };
 
     test_encode(encodeHex<lower_t>, lower, expected_lower);
@@ -109,8 +107,16 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * Data, size_t Size)
 #if defined(FAST_HEX_ARM_SVE)
     if (has_sve)
     {
-        test_encode(encodeHexSve<lower_t>, lower, expected_lower);
-        test_encode(encodeHexSve<upper_t>, upper, expected_upper);
+        // At every vector length the CPU supports, so a crash doesn't depend on the inputs before it
+        heks_test::atEachSveVectorLength(
+            [&](int)
+            {
+                test_encode(encodeHexSve<lower_t>, lower, expected_lower);
+                test_encode(encodeHexSve<upper_t>, upper, expected_upper);
+                // What every encoder above gave, as test_encode checked
+                decode(expected_lower, decodeHexSve);
+                decode(expected_upper, decodeHexSve);
+            });
     }
 #endif
 

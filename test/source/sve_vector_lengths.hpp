@@ -1,60 +1,61 @@
 #pragma once
 
-// Runs a test at each SVE vector length the CPU supports, so the 128-bit code is tested on CPUs with longer vectors.
-// Linux only, and not when the tests are built for SVE: code inlined here could keep values sized by the old length.
-// Otherwise the test runs once, at the current length.
+// Runs a test at each SVE vector length the CPU supports: see sve_set_vector_length.hpp for when it can set them.
 
-#include "fast_hex/fast_hex_arm_sve.hpp"
+#include "sve_set_vector_length.hpp"
 
-#if defined(FAST_HEX_ARM_SVE)
-
-#    include <algorithm>
-#    include <vector>
-
-#    include <doctest/doctest.h>
-
-#    if defined(__linux__)
-#        include <sys/prctl.h>
-#    endif
+#include <cstddef>
 
 namespace heks_test
 {
 
+// What the forEachSveVectorLength calls did, for FAST_HEX_TEST_REQUIRE. All zero where there is no SVE
+struct SveVectorLengthRuns
+{
+    std::size_t tests = 0; // Calls that ran their test to the end
+    std::size_t fewest_lengths = 0; // The fewest vector lengths that one of them set
+    bool length_not_set = false; // One of them couldn't set a length from sveVectorLengths
+};
+
+inline SveVectorLengthRuns & sveVectorLengthRuns()
+{
+    static SveVectorLengthRuns runs;
+    return runs;
+}
+
+} // namespace heks_test
+
+#if defined(FAST_HEX_ARM_SVE)
+
+#    include <algorithm>
+
+#    include <doctest/doctest.h>
+
+namespace heks_test
+{
+
+// atEachSveVectorLength for a test: names the length in a failure, and records the call
 template <class F>
 void forEachSveVectorLength(F test)
 {
-#    if defined(__linux__) && defined(PR_SVE_GET_VL) && !defined(__ARM_FEATURE_SVE)
-    const int original = prctl(PR_SVE_GET_VL);
-    if (original >= 0)
-    {
-        // Back to the original length however the test ends: doctest's REQUIRE throws
-        struct Restore
+    const std::size_t lengths = sveVectorLengthsOnce().size();
+    const std::size_t lengths_set = atEachSveVectorLength(
+        [&](int vector_bytes)
         {
-            int config;
-            ~Restore() { static_cast<void>(prctl(PR_SVE_SET_VL, static_cast<unsigned long>(config))); }
-        } restore{original};
-
-        std::vector<int> tested;
-        for (int bytes = 16; bytes <= 256; bytes += 16)
-        {
-            // The kernel takes the longest length the CPU supports up to the one asked for
-            const int config = prctl(PR_SVE_SET_VL, static_cast<unsigned long>(bytes));
-            if (config < 0)
-                continue;
-            const int vector_bytes = config & PR_SVE_VL_LEN_MASK;
-            if (std::find(tested.begin(), tested.end(), vector_bytes) != tested.end())
-                continue;
-            tested.push_back(vector_bytes);
-            CAPTURE(vector_bytes);
+            CAPTURE(vector_bytes); // 0 for the current one
             test();
-        }
-        if (!tested.empty())
-            return;
-        // Every length was refused, by a seccomp filter say
-        MESSAGE("Couldn't set the SVE vector length: testing at the current one only");
-    }
+        });
+#    if defined(FAST_HEX_TEST_SVE_SET_VL) // Otherwise the tests don't set it, by design
+    if (lengths_set == 0)
+        MESSAGE("Couldn't set the SVE vector length: tested at the current one only");
+    else if (lengths_set != lengths)
+        MESSAGE("Couldn't set " << lengths - lengths_set << " of the SVE vector lengths any more");
 #    endif
-    test();
+    // After the tests, so that it only counts lengths whose tests ran to the end
+    SveVectorLengthRuns & runs = sveVectorLengthRuns();
+    runs.fewest_lengths = runs.tests == 0 ? lengths_set : std::min(runs.fewest_lengths, lengths_set);
+    runs.length_not_set = runs.length_not_set || lengths_set != lengths;
+    ++runs.tests;
 }
 
 } // namespace heks_test
