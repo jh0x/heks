@@ -1,28 +1,30 @@
 include(cmake/folders.cmake)
 
-# Must come before the test directory is added, so the flags reach its targets
 option(
     fast_hex_ENABLE_SANITIZERS
     "Build tests with AddressSanitizer and UndefinedBehaviorSanitizer"
     OFF
 )
-if(fast_hex_ENABLE_SANITIZERS)
-    # The CI presets define _FORTIFY_SOURCE=3, whose checked libc calls bypass
-    # ASan's instrumentation. These options come after CMAKE_CXX_FLAGS_<CONFIG>
-    # on the command line, so the -U wins
-    add_compile_options(
-        -fsanitize=address,undefined
-        -fno-sanitize-recover=all
-        -fno-omit-frame-pointer
-        -g
-        -U_FORTIFY_SOURCE
-    )
-    add_link_options(-fsanitize=address,undefined)
-endif()
 
 include(CTest)
 if(BUILD_TESTING)
     add_subdirectory(test)
+
+    # The fuzz targets set their own. The CI presets define _FORTIFY_SOURCE=3,
+    # whose checked libc calls bypass ASan's instrumentation. Target options come
+    # after CMAKE_CXX_FLAGS_<CONFIG> on the command line, so the -U wins
+    if(fast_hex_ENABLE_SANITIZERS)
+        target_compile_options(
+            fast_hex_test
+            PRIVATE
+                -fsanitize=address,undefined
+                -fno-sanitize-recover=all
+                -fno-omit-frame-pointer
+                -g
+                -U_FORTIFY_SOURCE
+        )
+        target_link_options(fast_hex_test PRIVATE -fsanitize=address,undefined)
+    endif()
 endif()
 
 option(fast_hex_ENABLE_FUZZ "Enable fuzz support" OFF)
@@ -33,29 +35,14 @@ if(fast_hex_ENABLE_BENCHMARK)
 
     # A toolchain file may give the compiler arguments that CMAKE_CXX_COMPILER
     # alone would lose, as armv7-toolchain.cmake does, so it is passed on too.
-    # One that names no compiler leaves the choice to CMAKE_CXX_COMPILER. A
-    # relative one is looked up as CMake does: in the build directory, then in
-    # the source directory
+    # One that names no compiler leaves the choice to CMAKE_CXX_COMPILER.
+    # project() has already made a relative one absolute in the cache
     set(benchmark_compiler_args "-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}")
     if(CMAKE_TOOLCHAIN_FILE)
-        get_filename_component(
-            benchmark_toolchain_file
-            "${CMAKE_TOOLCHAIN_FILE}"
-            ABSOLUTE
-            BASE_DIR "${CMAKE_BINARY_DIR}"
-        )
-        if(NOT EXISTS "${benchmark_toolchain_file}")
-            get_filename_component(
-                benchmark_toolchain_file
-                "${CMAKE_TOOLCHAIN_FILE}"
-                ABSOLUTE
-                BASE_DIR "${CMAKE_SOURCE_DIR}"
-            )
-        endif()
         list(
             APPEND
             benchmark_compiler_args
-            "-DCMAKE_TOOLCHAIN_FILE=${benchmark_toolchain_file}"
+            "-DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}"
         )
     endif()
 

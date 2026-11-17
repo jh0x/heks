@@ -37,7 +37,7 @@
 
 #define FAST_HEX_RESTRICT __restrict__ // GCC and Clang's spelling of the C99 keyword
 
-#if defined(__GNUC__) && defined(__x86_64__)
+#if defined(__x86_64__)
 #    define FAST_HEX_X86_64 1
 #endif
 
@@ -47,7 +47,7 @@
 
 // SVE intrinsics under target("+sve") need GCC 14 or Clang 18. The SVE functions use NEON for short inputs, so
 // they need NEON too. No Apple CPU has SVE, and Clang's arm_sve.h refuses big-endian
-#if defined(FAST_HEX_NEON) && defined(__GNUC__) && defined(__aarch64__) && !defined(__APPLE__)
+#if defined(FAST_HEX_NEON) && defined(__aarch64__) && !defined(__APPLE__)
 #    if defined(__clang__)
 #        if __clang_major__ >= 18 && !defined(__ARM_BIG_ENDIAN)
 #            define FAST_HEX_ARM_SVE 1

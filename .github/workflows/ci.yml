@@ -233,7 +233,7 @@ jobs:
 
     - name: Cache toolchain
       id: cache-tc
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: ${{ runner.temp }}/aarch64be
         key: bootlin-aarch64be-2026.08-1

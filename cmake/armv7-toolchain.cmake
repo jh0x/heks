@@ -11,10 +11,7 @@ set(CROSS arm-linux-gnueabihf)
 # The armhf default is VFPv3-D16 without NEON: the NEON functions need it on.
 # Given as compiler arguments rather than in CMAKE_CXX_FLAGS_INIT, which the
 # presets override by setting CMAKE_CXX_FLAGS. A compiler with arguments needs
-# CMake 3.19: older versions take the whole list as the program's name
-if(CMAKE_VERSION VERSION_LESS 3.19)
-    message(FATAL_ERROR "cmake/armv7-toolchain.cmake needs CMake 3.19 or later")
-endif()
+# CMake 3.19, which the project's minimum of 3.20 covers
 set(ARMV7_NEON_FLAGS -march=armv7-a -mfpu=neon -mfloat-abi=hard)
 set(CMAKE_C_COMPILER ${CROSS}-gcc ${ARMV7_NEON_FLAGS})
 set(CMAKE_CXX_COMPILER ${CROSS}-g++ ${ARMV7_NEON_FLAGS})
