@@ -19,7 +19,8 @@
 // but only call one where the CPU supports it: in a build that requires it, or after cpuHasAvx2() and the like.
 //
 // RawLength is the length of the binary data: encoding reads len bytes and writes len * 2 hex chars, decoding
-// the reverse. Decoding accepts either case. Input that is not hex decodes to unspecified bytes, nothing worse.
+// the reverse. Decoding accepts either case. If any char of the input is not hex, every byte of the output is
+// unspecified, and nothing worse: no function reads or writes outside those ranges.
 
 #include <array>
 #include <bit>
@@ -29,14 +30,14 @@
 #include <string_view>
 #include <type_traits>
 
-#if defined(_MSC_VER)
-#    define FAST_HEX_RESTRICT __restrict // The C99 keyword, available as a C++ extension
-#else
-#    define FAST_HEX_RESTRICT __restrict__
+// Clang defines __GNUC__ too, except as clang-cl, which like MSVC would only get the scalar code
+#if !defined(__GNUC__)
+#    error "fast_hex needs GCC or Clang: MSVC and clang-cl are not supported"
 #endif
 
-// MSVC has no target attributes, so it only gets the scalar code on x86-64
-#if defined(__GNUC__) && defined(__x86_64__)
+#define FAST_HEX_RESTRICT __restrict__ // GCC and Clang's spelling of the C99 keyword
+
+#if defined(__x86_64__)
 #    define FAST_HEX_X86_64 1
 #endif
 
@@ -46,7 +47,7 @@
 
 // SVE intrinsics under target("+sve") need GCC 14 or Clang 18. The SVE functions use NEON for short inputs, so
 // they need NEON too. No Apple CPU has SVE, and Clang's arm_sve.h refuses big-endian
-#if defined(FAST_HEX_NEON) && defined(__GNUC__) && defined(__aarch64__) && !defined(__APPLE__)
+#if defined(FAST_HEX_NEON) && defined(__aarch64__) && !defined(__APPLE__)
 #    if defined(__clang__)
 #        if __clang_major__ >= 18 && !defined(__ARM_BIG_ENDIAN)
 #            define FAST_HEX_ARM_SVE 1

@@ -5,6 +5,7 @@
 #include "fast_hex/fast_hex_x86_64_icelake.hpp"
 #include "fast_hex/fast_hex_x86_64_v3.hpp"
 #include "fast_hex/fast_hex_x86_64_v4.hpp"
+#include "sve_set_vector_length.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -83,9 +84,10 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t * Data, size_t Size)
     [[maybe_unused]] const auto neon = decode(decodeHexNeon);
 #endif
 #if defined(FAST_HEX_ARM_SVE)
+    // At every vector length the CPU supports, so a crash doesn't depend on the inputs before it
     static const bool has_sve = cpuHasSve();
     if (has_sve)
-        agree(neon, decode(decodeHexSve));
+        heks_test::atEachSveVectorLength([&](int) { agree(neon, decode(decodeHexSve)); });
 #endif
     return 0;
 }

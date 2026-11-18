@@ -1,8 +1,16 @@
+# sve_set_vector_length.hpp, shared with the tests. Found from this file, as
+# CMAKE_CURRENT_LIST_DIR inside the function would be that of its caller
+set(FUZZ_SHARED_INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/../test/source")
+
 # CMake function to define a fuzz target with common settings
 function(add_fuzz_target TARGET_NAME FUZZ_SOURCE_FILE)
     add_executable(${TARGET_NAME} ${FUZZ_SOURCE_FILE})
     target_link_libraries(${TARGET_NAME} PRIVATE fast_hex::headers)
     target_compile_features(${TARGET_NAME} PRIVATE cxx_std_20)
+    target_include_directories(
+        ${TARGET_NAME}
+        PRIVATE "${FUZZ_SHARED_INCLUDE_DIR}"
+    )
     # -fno-sanitize-recover makes a UBSan finding abort, so libFuzzer records it
     # as a crash. -U_FORTIFY_SOURCE because the checked libc calls bypass ASan
     target_compile_options(

@@ -1,3 +1,4 @@
+#include "cpu_feature_tests.hpp"
 #include "fast_hex/fast_hex.hpp"
 #include "fast_hex/fast_hex_arm_neon.hpp"
 #include "fast_hex/fast_hex_arm_sve.hpp"
@@ -8,6 +9,7 @@
 #include <algorithm>
 #include <array>
 #include <bit>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <string>
@@ -236,6 +238,113 @@ void run_decode_integral_test(Fun decode_func, const TestCase<T> (&test_cases)[N
     }
 }
 
+// Random values against a reference written here: the fixed cases above are mostly patterned
+
+// Fills value with the next bytes of a splitmix64 sequence
+template <typename T>
+T randomValue(uint64_t & state)
+{
+    uint8_t bytes[sizeof(T)];
+    for (size_t i = 0; i < sizeof(T); i += sizeof(uint64_t))
+    {
+        state += 0x9E3779B97F4A7C15ULL;
+        uint64_t z = state;
+        z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
+        z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
+        z ^= z >> 31;
+        std::memcpy(bytes + i, &z, std::min(sizeof(T) - i, sizeof(uint64_t)));
+    }
+    T value;
+    std::memcpy(&value, bytes, sizeof(T));
+    return value;
+}
+
+// value as hex, most significant byte first. Independent of the library's tables
+template <typename T>
+std::string referenceHex(const T & value, bool upper_case)
+{
+    const char * digits = upper_case ? "0123456789ABCDEF" : "0123456789abcdef";
+    uint8_t bytes[sizeof(T)];
+    std::memcpy(bytes, &value, sizeof(T));
+    if (std::endian::native == std::endian::little)
+        std::reverse(bytes, bytes + sizeof(T));
+    std::string hex;
+    for (const uint8_t byte : bytes)
+    {
+        hex += digits[byte >> 4];
+        hex += digits[byte & 0x0F];
+    }
+    return hex;
+}
+
+// For encodeHexInt2x8: each value on its own, in order
+template <typename T>
+std::string referenceHex(const std::array<T, 2> & values, bool upper_case)
+{
+    return referenceHex(values[0], upper_case) + referenceHex(values[1], upper_case);
+}
+
+constexpr int RandomValues = 2000;
+
+template <typename T, typename Fun>
+void run_random_encode_test(Fun encode_func)
+{
+    uint64_t state = sizeof(T);
+    for (int i = 0; i < RandomValues; ++i)
+    {
+        const T value = randomValue<T>(state);
+        const std::string expected_lower = referenceHex(value, false);
+        const std::string expected_upper = referenceHex(value, true);
+        std::vector<uint8_t> out_lower(sizeof(T) * 2);
+        std::vector<uint8_t> out_upper(sizeof(T) * 2);
+        encode_func(out_lower.data(), value, lower);
+        encode_func(out_upper.data(), value, upper);
+        CAPTURE(expected_lower);
+        REQUIRE(std::string(out_lower.begin(), out_lower.end()) == expected_lower);
+        REQUIRE(std::string(out_upper.begin(), out_upper.end()) == expected_upper);
+    }
+}
+
+template <typename T, typename Fun>
+void run_random_decode_test(Fun decode_func)
+{
+    uint64_t state = sizeof(T);
+    for (int i = 0; i < RandomValues; ++i)
+    {
+        const T value = randomValue<T>(state);
+        for (const bool upper_case : {false, true})
+        {
+            const std::string hex = referenceHex(value, upper_case);
+            CAPTURE(hex);
+            // Ends right after the chars, so that ASan catches reads past them
+            const std::vector<uint8_t> src(hex.begin(), hex.end());
+            const T decoded = decode_func(src.data(), std::type_identity<T>{});
+            REQUIRE(std::memcmp(&decoded, &value, sizeof(T)) == 0);
+        }
+    }
+}
+
+// The types the SIMD integer functions take
+template <typename Fun>
+void run_random_encode_tests_simd(Fun encode_func)
+{
+    run_random_encode_test<uint64_t>(encode_func);
+#if defined(__SIZEOF_INT128__)
+    run_random_encode_test<__uint128_t>(encode_func);
+#endif
+    run_random_encode_test<UInt256>(encode_func);
+}
+
+template <typename Fun>
+void run_random_decode_tests_simd(Fun decode_func)
+{
+    run_random_decode_test<uint64_t>(decode_func);
+#if defined(__SIZEOF_INT128__)
+    run_random_decode_test<__uint128_t>(decode_func);
+#endif
+    run_random_decode_test<UInt256>(decode_func);
+}
+
 TEST_SUITE("encodeHexInt")
 {
     TEST_CASE("encodeHexInt")
@@ -249,26 +358,35 @@ TEST_SUITE("encodeHexInt")
         run_encode_integral_test(encode, test_cases16);
 #endif
         run_encode_integral_test(encode, test_cases32);
+        run_random_encode_test<uint8_t>(encode);
+        run_random_encode_test<uint16_t>(encode);
+        run_random_encode_test<uint32_t>(encode);
+        run_random_encode_tests_simd(encode);
     }
     TEST_CASE("encodeHexInt2x8")
     {
-        run_encode_integral_test([](auto dst, auto input, auto c) { encodeHexInt2x8(dst, input.data(), c); }, test_cases2x8);
+        auto encode = [](auto dst, auto input, auto c) { encodeHexInt2x8(dst, input.data(), c); };
+        run_encode_integral_test(encode, test_cases2x8);
+        run_random_encode_test<std::array<uint64_t, 2>>(encode);
     }
 #if defined(FAST_HEX_X86_64)
-    TEST_CASE("encodeHexIntAvx2" * doctest::skip(!cpuHasAvx2()))
+    TEST_CASE("encodeHexIntAvx2" * heks_test::avx2())
     {
         auto encode = [](auto dst, auto input, auto c) { encodeHexIntAvx2(dst, input, c); };
         run_encode_integral_test(encode, test_cases8);
         run_encode_integral_test(encode, test_cases16);
         run_encode_integral_test(encode, test_cases32);
+        run_random_encode_tests_simd(encode);
     }
-    TEST_CASE("encodeHexInt2x8Avx2" * doctest::skip(!cpuHasAvx2()))
+    TEST_CASE("encodeHexInt2x8Avx2" * heks_test::avx2())
     {
-        run_encode_integral_test([](auto dst, auto input, auto c) { encodeHexInt2x8Avx2(dst, input.data(), c); }, test_cases2x8);
+        auto encode = [](auto dst, auto input, auto c) { encodeHexInt2x8Avx2(dst, input.data(), c); };
+        run_encode_integral_test(encode, test_cases2x8);
+        run_random_encode_test<std::array<uint64_t, 2>>(encode);
     }
 #endif
 #if defined(FAST_HEX_NEON)
-    TEST_CASE("encodeHexIntNeon")
+    TEST_CASE("encodeHexIntNeon" * heks_test::neon())
     {
         auto encode = [](auto dst, auto input, auto c) { encodeHexIntNeon(dst, input, c); };
         run_encode_integral_test(encode, test_cases8);
@@ -276,10 +394,13 @@ TEST_SUITE("encodeHexInt")
         run_encode_integral_test(encode, test_cases16);
 #    endif
         run_encode_integral_test(encode, test_cases32);
+        run_random_encode_tests_simd(encode);
     }
-    TEST_CASE("encodeHexInt2x8Neon")
+    TEST_CASE("encodeHexInt2x8Neon" * heks_test::neon())
     {
-        run_encode_integral_test([](auto dst, auto input, auto c) { encodeHexInt2x8Neon(dst, input.data(), c); }, test_cases2x8);
+        auto encode = [](auto dst, auto input, auto c) { encodeHexInt2x8Neon(dst, input.data(), c); };
+        run_encode_integral_test(encode, test_cases2x8);
+        run_random_encode_test<std::array<uint64_t, 2>>(encode);
     }
 #endif
 }
@@ -297,18 +418,23 @@ TEST_SUITE("decodeHexInt")
         run_decode_integral_test(decode, test_cases16);
 #endif
         run_decode_integral_test(decode, test_cases32);
+        run_random_decode_test<uint8_t>(decode);
+        run_random_decode_test<uint16_t>(decode);
+        run_random_decode_test<uint32_t>(decode);
+        run_random_decode_tests_simd(decode);
     }
 #if defined(FAST_HEX_X86_64)
-    TEST_CASE("decodeHexIntAvx2" * doctest::skip(!cpuHasAvx2()))
+    TEST_CASE("decodeHexIntAvx2" * heks_test::avx2())
     {
         auto decode = []<class T>(const uint8_t * src, std::type_identity<T>) { return decodeHexIntAvx2<T>(src); };
         run_decode_integral_test(decode, test_cases8);
         run_decode_integral_test(decode, test_cases16);
         run_decode_integral_test(decode, test_cases32);
+        run_random_decode_tests_simd(decode);
     }
 #endif
 #if defined(FAST_HEX_NEON)
-    TEST_CASE("decodeHexIntNeon")
+    TEST_CASE("decodeHexIntNeon" * heks_test::neon())
     {
         auto decode = []<class T>(const uint8_t * src, std::type_identity<T>) { return decodeHexIntNeon<T>(src); };
         run_decode_integral_test(decode, test_cases8);
@@ -316,6 +442,7 @@ TEST_SUITE("decodeHexInt")
         run_decode_integral_test(decode, test_cases16);
 #    endif
         run_decode_integral_test(decode, test_cases32);
+        run_random_decode_tests_simd(decode);
     }
 #endif
 }

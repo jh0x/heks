@@ -14,19 +14,12 @@ cmake --build build
 ```
 
 Here are the steps for building in release mode with a multi-configuration
-generator, like the Visual Studio ones:
+generator, like the Xcode one:
 
 ```sh
 cmake -S . -B build
 cmake --build build --config Release
 ```
-
-### Building with MSVC
-
-Note that MSVC by default is not standards compliant and you need to pass some
-flags to make it behave properly. See the `flags-msvc` preset in the
-[CMakePresets.json](CMakePresets.json) file for the flags and with what
-variable to provide them to CMake during configuration.
 
 ### Building on Apple Silicon
 
@@ -50,7 +43,7 @@ cmake --install build
 ```
 
 Here is the command for installing the release mode artifacts with a
-multi-configuration generator, like the Visual Studio ones:
+multi-configuration generator, like the Xcode one:
 
 ```sh
 cmake --install build --config Release

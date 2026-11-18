@@ -1,3 +1,4 @@
+#include "cpu_feature_tests.hpp"
 #include "fast_hex/fast_hex.hpp"
 #include "fast_hex/fast_hex_arm_neon.hpp"
 #include "fast_hex/fast_hex_arm_sve.hpp"
@@ -8,6 +9,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <vector>
@@ -191,34 +193,34 @@ TEST_CASE("hex_guarded_buffers")
 #endif
 
 #if defined(FAST_HEX_X86_64)
-TEST_CASE("hexAvx2_unaligned_buffers" * doctest::skip(!cpuHasAvx2()))
+TEST_CASE("hexAvx2_unaligned_buffers" * heks_test::avx2())
 {
     testUnalignedBuffers<encodeHexAvx2<lower_t>, encodeHexAvx2<upper_t>, decodeHexAvx2>();
 }
 #    if defined(__unix__) || defined(__APPLE__)
-TEST_CASE("hexAvx2_guarded_buffers" * doctest::skip(!cpuHasAvx2()))
+TEST_CASE("hexAvx2_guarded_buffers" * heks_test::avx2())
 {
     testGuardedBuffers<encodeHexAvx2<lower_t>, encodeHexAvx2<upper_t>, decodeHexAvx2>();
 }
 #    endif
 
-TEST_CASE("hexAvx512_unaligned_buffers" * doctest::skip(!cpuHasAvx512()))
+TEST_CASE("hexAvx512_unaligned_buffers" * heks_test::avx512())
 {
     testUnalignedBuffers<encodeHexAvx512<lower_t>, encodeHexAvx512<upper_t>, decodeHexAvx512>();
 }
 #    if defined(__unix__) || defined(__APPLE__)
-TEST_CASE("hexAvx512_guarded_buffers" * doctest::skip(!cpuHasAvx512()))
+TEST_CASE("hexAvx512_guarded_buffers" * heks_test::avx512())
 {
     testGuardedBuffers<encodeHexAvx512<lower_t>, encodeHexAvx512<upper_t>, decodeHexAvx512>();
 }
 #    endif
 
-TEST_CASE("hexAvx512Vbmi_unaligned_buffers" * doctest::skip(!cpuHasAvx512Vbmi()))
+TEST_CASE("hexAvx512Vbmi_unaligned_buffers" * heks_test::avx512vbmi())
 {
     testUnalignedBuffers<encodeHexAvx512Vbmi<lower_t>, encodeHexAvx512Vbmi<upper_t>, decodeHexAvx512Vbmi>();
 }
 #    if defined(__unix__) || defined(__APPLE__)
-TEST_CASE("hexAvx512Vbmi_guarded_buffers" * doctest::skip(!cpuHasAvx512Vbmi()))
+TEST_CASE("hexAvx512Vbmi_guarded_buffers" * heks_test::avx512vbmi())
 {
     testGuardedBuffers<encodeHexAvx512Vbmi<lower_t>, encodeHexAvx512Vbmi<upper_t>, decodeHexAvx512Vbmi>();
 }
@@ -226,12 +228,12 @@ TEST_CASE("hexAvx512Vbmi_guarded_buffers" * doctest::skip(!cpuHasAvx512Vbmi()))
 #endif
 
 #if defined(FAST_HEX_NEON)
-TEST_CASE("hexNeon_unaligned_buffers")
+TEST_CASE("hexNeon_unaligned_buffers" * heks_test::neon())
 {
     testUnalignedBuffers<encodeHexNeon<lower_t>, encodeHexNeon<upper_t>, decodeHexNeon>();
 }
 #    if defined(__unix__) || defined(__APPLE__)
-TEST_CASE("hexNeon_guarded_buffers")
+TEST_CASE("hexNeon_guarded_buffers" * heks_test::neon())
 {
     testGuardedBuffers<encodeHexNeon<lower_t>, encodeHexNeon<upper_t>, decodeHexNeon>();
 }
@@ -239,12 +241,12 @@ TEST_CASE("hexNeon_guarded_buffers")
 #endif
 
 #if defined(FAST_HEX_ARM_SVE)
-TEST_CASE("hexSve_unaligned_buffers" * doctest::skip(!cpuHasSve()))
+TEST_CASE("hexSve_unaligned_buffers" * heks_test::sve())
 {
     heks_test::forEachSveVectorLength([] { testUnalignedBuffers<encodeHexSve<lower_t>, encodeHexSve<upper_t>, decodeHexSve>(); });
 }
 #    if defined(__unix__) || defined(__APPLE__)
-TEST_CASE("hexSve_guarded_buffers" * doctest::skip(!cpuHasSve()))
+TEST_CASE("hexSve_guarded_buffers" * heks_test::sve())
 {
     heks_test::forEachSveVectorLength([] { testGuardedBuffers<encodeHexSve<lower_t>, encodeHexSve<upper_t>, decodeHexSve>(); });
 }
